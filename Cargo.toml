@@ -1,0 +1,7 @@
+[package]
+name = "libtypemagic"
+version = "0.1.0"
+authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
+
+[dependencies]
+id_tree ="^1"
