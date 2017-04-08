@@ -51,7 +51,7 @@ pub mod ruleset{
         str::from_utf8(s)
     }
     pub fn to_u32(s: std::result::Result<&str, std::str::Utf8Error>, def: u32) -> u32 {
-        //
+        
         match s {
             Ok (t) => {str::FromStr::from_str(t).unwrap_or(def)},
             Err (_) => def

@@ -181,25 +181,38 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
 
 /// The meat. Gets the type of a file.
 fn get_type_from_filepath(
+    node: Option<NodeIndex>,
     typegraph: DiGraph<String, u32>, 
     magic_ruleset: Vec<magic::MagicEntry>,
     filepath: &str
-) -> String {
+) -> Option<String> {
 
-    // Start at an outside unconnected node
-    let extnode;
-    match typegraph.externals(Incoming).next() {
-        Some(node) => extnode = node,
-        None => panic!("No external graph nodes found!")
+    // Start at an outside unconnected node if no node given
+    let parentnode: NodeIndex;
+    
+    match node {
+        Some(foundnode) => parentnode = foundnode,
+        None => {
+            match typegraph.externals(Incoming).next() {
+                Some(foundnode) => parentnode = foundnode,
+                None => panic!("No external nodes found!")
+            }
+        }
     }
     
     // Walk the children
-    let children = typegraph.neighbors_directed(extnode, Outgoing);
-    for node in children {
-        let ref mimetype = typegraph[node];
+    let mut children = typegraph.neighbors_directed(parentnode, Outgoing).detach();
+    while let Some(childnode) = children.next_node(&typegraph) {
+        let mimetype = typegraph[childnode].clone();
         let rule: magic::MagicEntry;
         
         println!("{}", mimetype);
+        
+        if(mimetype == "all/all" || mimetype == "all/allfiles" || mimetype == "application/octet-stream") {
+            return get_type_from_filepath(
+                Some(childnode), typegraph, magic_ruleset, filepath
+            );
+        }
         
         match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
             Ok(Idx) => rule = magic_ruleset[Idx].clone(),
@@ -208,14 +221,21 @@ fn get_type_from_filepath(
         
         match magic::test::from_filepath(filepath, rule) {
             Ok(res) => match res {
-                true => return mimetype.clone(),
+                true => {
+                    match get_type_from_filepath(
+                        Some(childnode), typegraph, magic_ruleset, filepath
+                    ) {
+                        Some(foundtype) => return Some(foundtype),
+                        None => return Some(mimetype.clone()),
+                    }
+                }
                 false => continue,
             },
-            Err(_) => panic!("File not found!"),
+            Err(_) => return None,
         }
     }
     
-    "inode/none".to_string()
+    None
 }
 
 fn main() {
@@ -236,7 +256,7 @@ fn main() {
         },
     }
     
-    println!("Result: {}", get_type_from_filepath(typegraph, magic_ruleset, "~/fafsa.pdf"));
+    println!("Result: {:?}", get_type_from_filepath(None, typegraph, magic_ruleset, "~/fafsa.pdf"));
     
     
 }
