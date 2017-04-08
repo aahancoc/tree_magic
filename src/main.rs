@@ -179,6 +179,45 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     Ok(graph)
 }
 
+/// The meat. Gets the type of a file.
+fn get_type_from_filepath(
+    typegraph: DiGraph<String, u32>, 
+    magic_ruleset: Vec<magic::MagicEntry>,
+    filepath: &str
+) -> String {
+
+    // Start at an outside unconnected node
+    let extnode;
+    match typegraph.externals(Incoming).next() {
+        Some(node) => extnode = node,
+        None => panic!("No external graph nodes found!")
+    }
+    
+    // Walk the children
+    let children = typegraph.neighbors_directed(extnode, Outgoing);
+    for node in children {
+        let ref mimetype = typegraph[node];
+        let rule: magic::MagicEntry;
+        
+        println!("{}", mimetype);
+        
+        match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
+            Ok(Idx) => rule = magic_ruleset[Idx].clone(),
+            Err(_) => {continue;},
+        }
+        
+        match magic::test::from_filepath(filepath, rule) {
+            Ok(res) => match res {
+                true => return mimetype.clone(),
+                false => continue,
+            },
+            Err(_) => panic!("File not found!"),
+        }
+    }
+    
+    "inode/none".to_string()
+}
+
 fn main() {
 
     let typegraph: DiGraph<String, u32>;
@@ -196,6 +235,8 @@ fn main() {
             magic_ruleset = out;
         },
     }
+    
+    println!("Result: {}", get_type_from_filepath(typegraph, magic_ruleset, "~/fafsa.pdf"));
     
     
 }

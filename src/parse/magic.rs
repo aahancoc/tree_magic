@@ -1,4 +1,7 @@
-#[derive(Debug)]
+extern crate std;
+use std::cmp::Ordering;
+
+#[derive(Debug, Clone)]
 pub struct MagicRule {
     pub indent_level: u32,
     pub start_off: u32,
@@ -9,11 +12,32 @@ pub struct MagicRule {
     pub region_len: u32
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MagicEntry {
     pub mime: String,
     pub rules: Vec<MagicRule>
 }
+
+impl PartialEq for MagicEntry {
+    fn eq(&self, other: &MagicEntry) -> bool {
+        self.mime == other.mime
+    }
+}
+
+impl Eq for MagicEntry {}
+
+impl PartialOrd for MagicEntry {
+    fn partial_cmp(&self, other: &MagicEntry) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MagicEntry {
+    fn cmp(&self, other: &MagicEntry) -> Ordering {
+        self.mime.cmp(&other.mime)
+    }
+}
+
 
 pub mod ruleset{
     extern crate nom;
@@ -38,8 +62,6 @@ pub mod ruleset{
         to_u32(to_string(s), def)
     }
 
-
-
     // Initial mime string
     // Format: [priority: mime]         
     named!(mime<&str>,
@@ -61,14 +83,6 @@ pub mod ruleset{
     fn mime_test() {
         assert_eq!(mime(&b"[90:text/plain]\n"[..]), IResult::Done(&b""[..], "text/plain"));
     }
-    
-    /*named!(blegh<bool>, 
-        do_parse!(
-            res: opt!(peek!(is_a!("012345689>"))) >>
-            (res.is_some())
-        )
-    );*/
-
 
     // Indent levels sub-parser for magic_rules
     // Default value 0
@@ -100,17 +114,6 @@ pub mod ruleset{
         assert_eq!(magic_rules_start_off(&b"0="[..]).to_result().unwrap(), 0);
         assert_eq!(magic_rules_start_off(&b"42="[..]).to_result().unwrap(), 42);
     }
-    
-    // Ensure first byte is not a [
-    /*named!(magic_rules_ismime,
-        peek!(tag!("["))
-    );*/
-    
-    /*#[test]
-    fn isrule_test() {
-        assert_eq!(magic_rules_isrule(&b"[90:xxx]"[..]).to_result().is_err(), true);
-        assert_eq!(magic_rules_isrule(&b"2>"[..]).to_result().is_err(), false);
-    }*/
 
     // Singular magic ruleset
     named!(magic_rules<super::MagicRule>,
@@ -204,12 +207,14 @@ pub mod ruleset{
         let mut bmagic = Vec::<u8>::new();
         rmagic.read_to_end(&mut bmagic).map_err(|e| e.to_string())?;
         
-        let magic_ruleset = from_u8(
+        let mut magic_ruleset = from_u8(
             bmagic.as_slice()
         ).to_result().map_err(|e| e.to_string())?;
         
-        println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
+        //println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
         
+        magic_ruleset.sort();
+        let magic_ruleset = magic_ruleset;
         Ok(magic_ruleset)
     }
 
@@ -218,38 +223,41 @@ pub mod ruleset{
 // Functions to check if a file matches a magic entry
 pub mod test{
 
-/*    fn from_u8_singlerule(file: &[u8], rule: super::MagicRule) -> bool {
+    extern crate std;
     
-        let testarea: Vec<u8> = file.iter().skip(rule.start_off as usize).take(rule.val_len as usize + rule.region_len as usize).map(|&x| x).collect();
+    fn from_vec_u8_singlerule(file: &Vec<u8>, rule: super::MagicRule) -> bool {
         
-        //println!({:#?}, 
-    
-        /*let testarea = file[
+        let ref testarea: Vec<u8> = *file;
+        let testarea: Vec<u8> = testarea[
             rule.start_off as usize .. 
             (
                 rule.start_off as usize +
                 rule.val_len as usize +
                 rule.region_len as usize
             )
-        ];*/
+        ].to_vec();
         
-        /*if testarea.windows(rule.val_len as usize).map(|&x| x).eq(rule.val.iter().map(|&x| x)) {
-            return true;
-        }*/
+        println!("{:#?}", testarea);
+        
+        for x in testarea.windows(rule.val_len as usize) {
+            if x.iter().eq(rule.val.iter()) {
+                return true;
+            }
+        }
 
         false
     }
     
     /// Only test against the top rule
-    pub fn from_u8_toprule(file: &[u8], magic: super::MagicEntry) -> bool {
+    /*pub fn from_u8_toprule(file: &[u8], magic: super::MagicEntry) -> bool {
         from_u8_singlerule(file, magic.rules[0])
-    }
+    }*/
 
     /// Test against all rules
-    pub fn from_u8(file: &[u8], magic: super::MagicEntry) -> bool {
+    pub fn from_vec_u8(file: Vec<u8>, magic: super::MagicEntry) -> bool {
     
         for rule in magic.rules {
-                match from_u8_singlerule(file, rule) {
+                match from_vec_u8_singlerule(&file, rule) {
                     true => return true,
                     false => continue,
                 }
@@ -257,6 +265,19 @@ pub mod test{
         
         false
     }
-*/
+    
+    pub fn from_filepath(filepath: &str, magic: super::MagicEntry) -> Result<bool, std::io::Error>{
+        use std::io::prelude::*;
+        use std::io::BufReader;
+        use std::fs::File;
+
+        let f = File::open(filepath)?;
+        let mut r = BufReader::new(f);
+        let mut b = Vec::<u8>::new();
+        r.read_to_end(&mut b)?; //Bad!
+        
+        Ok(from_vec_u8(b, magic))
+    }
+
 }
 
