@@ -1,61 +1,76 @@
 extern crate petgraph;
+extern crate mime;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
 use std::collections::HashMap;
-//use std::collections::hash_map;
-use std::collections::HashSet;
-//use std::hash::Hasher;
 use petgraph::prelude::*;
 use petgraph::dot::{Dot, Config};
 
-fn hashset_init() -> Result<HashSet<String>, std::io::Error> {
-    //let ftypes = File::open("/usr/share/mime/types")?;
-    let ftypes = File::open("/usr/share/mime/subclasses")?;
+fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
+    let ftypes = File::open("/usr/share/mime/types")?;
+    //let ftypes = File::open("/usr/share/mime/subclasses")?;
     let rtypes = BufReader::new(ftypes);
-    //let mut hashmap = HashMap::<String, u64>::new();
-    let mut hashset = HashSet::<String>::new();
-    //let mut hasher = hash_map::DefaultHasher::new();
+    let mut mimelist = Vec::<String>::new();
     
     for line in rtypes.lines() {
-        //let line_raw = line?;
-        let line_raw = line?.split_whitespace().nth(0).unwrap_or("").to_string();
-        //hasher.write(line_raw.as_bytes());
-        //let hash = hasher.finish();
-        
-        //hashmap.insert(line_raw, hash);
-        hashset.insert(line_raw);
+        let mime = line?.split_whitespace().nth(0).unwrap_or("").to_string();
+        mimelist.push(mime);
     }
     
     // Don't forget "all/all"!
-    {
-        let line_raw = "all/all".to_string();
-        //hasher.write(line_raw.as_bytes());
-        //let hash = hasher.finish();
-        
-        //hashmap.insert(line_raw, hash);
-        hashset.insert(line_raw);
-    }
+    /*{
+        let mime = "all/all".to_string();
+        mimelist.push(mime);
+    }*/
     
-    let hashset = hashset;
-    Ok(hashset)
+    let mimelist = mimelist;
+    Ok(mimelist)
 }
 
-fn graph_init(allmimes: &HashSet<String> ) -> Result<DiGraph<String, u32>, std::io::Error> {
+fn graph_init(mimelist: &Vec<String> ) -> Result<DiGraph<String, u32>, std::io::Error> {
 
     let fsubclasses = File::open("/usr/share/mime/subclasses")?;
     let rsubclasses = BufReader::new(fsubclasses);
-    //let mut graph = DiGraphMap::<u64, u32>::new();
     let mut graph = DiGraph::<String, u32>::new();
-    //let mut found_mimes = HashSet::<String>::new();
-    //let mut hasher = hash_map::DefaultHasher::new();
     let mut added_mimes = HashMap::<String, NodeIndex>::new();
     
+    let mut node_text: NodeIndex = NodeIndex::default();
+    let mut node_octet: NodeIndex = NodeIndex::default();
+    let mut node_allall: NodeIndex = NodeIndex::default();
+    let mut node_allfiles: NodeIndex = NodeIndex::default();
+    
     // Create all nodes
-    for name in allmimes.iter() {
-        let node = graph.add_node(name.clone());
-        added_mimes.insert(name.clone(), node);
+    for mimetype in mimelist.iter() {
+        let node = graph.add_node(mimetype.clone());
+        added_mimes.insert(mimetype.clone(), node);
+        
+        // Record well-used parent types now
+        if mimetype == "text/plain" {
+            node_text = node;
+        } else if mimetype == "application/octet-stream" {
+            node_octet = node;
+        } else if mimetype == "all/all" {
+            node_allall = node;
+        } else if mimetype == "all/allfiles" {
+            node_allfiles = node;
+        }
     }
+    
+    if node_text == NodeIndex::default() {
+        let mimetype = "text/plain".to_string();
+        node_text = graph.add_node(mimetype.clone());
+        added_mimes.insert(mimetype.clone(), node_text);
+    }
+    
+    if node_octet == NodeIndex::default() {
+        let mimetype = "application/octet-stream".to_string();
+        node_octet = graph.add_node(mimetype.clone());
+        added_mimes.insert(mimetype.clone(), node_octet);
+    }
+    
+    let node_text = node_text;
+    let node_octet = node_octet;
 
     
     // If a relation exists, add child to parent node
@@ -63,16 +78,6 @@ fn graph_init(allmimes: &HashSet<String> ) -> Result<DiGraph<String, u32>, std::
         let line_raw = line?;
         let child_raw = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
         let parent_raw = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
-        
-        //found_mimes.insert(child_raw.clone());
-        
-        // Get values of parent and child from HashSet. I hope this works?
-        
-        //hasher.write(parent_raw.as_bytes());
-        //let parent = hasher.finish();
-        
-        //hasher.write(child_raw.as_bytes());
-        //let child = hasher.finish();
         
         let parent: NodeIndex;
         let child: NodeIndex;
@@ -91,59 +96,55 @@ fn graph_init(allmimes: &HashSet<String> ) -> Result<DiGraph<String, u32>, std::
     }
     
     
-    // Otherwise, add to applicatom/octet-stream or text/plain, depending on prefix
-    //for x in allmimes.difference(&found_mimes) {
-    //    println!("{}", x);
-    //}
+    //Otherwise, add to applicaton/octet-stream, all/all, or text/plain, depending on top-level
+    graph.update_edge(node_octet, node_text, 1);
+    graph.update_edge(node_allall, node_allfiles, 1);
+    graph.update_edge(node_allfiles, node_octet, 1);
     
-    // Okay. How'd we do this in reverse? (That is, given a hash get the string?)
+    let mut edge_list = Vec::<(NodeIndex, NodeIndex)>::new();
+    for mimenode in graph.externals(Incoming) {
+        
+        let ref mimetype = graph[mimenode];
+        let toplevel = mimetype.split("/").nth(0).unwrap_or("");
+        
+        if mimenode == node_text || mimenode == node_octet {
+            continue;
+        }
+        
+        if toplevel == "text" {
+            edge_list.push( (node_text, mimenode) );
+        } else if toplevel == "inode" {
+            edge_list.push( (node_allall, mimenode) );
+        } else {
+            edge_list.push( (node_octet, mimenode) );
+        }
+    }
+    
+    graph.extend_with_edges(edge_list);
     
     let graph = graph;
-    
     println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 
     Ok(graph)
 }
 
-/*fn graph_link() -> Result<Vec<(String, String)>, std::io::Error> {
-    let f = File::open("/usr/share/mime/subclasses")?;
-    let reader = BufReader::new(f);
-    let mut out = Vec::new();
-
-    for line in reader.lines() {
-        let line_raw = line?;
-        let parent = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
-        let child = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
-        out.push((parent, child));
-    }
-    
-    out.dedup();
-    Ok(out)
-    
-}*/
-
 fn main() {
 
     // Create HashMap with all nodes
-    let type_hashset: HashSet<String>;
-    match hashset_init() {
+    let mimelist: Vec<String>;
+    match mimelist_init() {
         Err(why) => panic!("{:?}", why),
-        Ok(hashset) => {
-            type_hashset = hashset;
+        Ok(out) => {
+            mimelist = out;
         },
     }
     
     //println!("{:?}", type_hashmap);
 
-    match graph_init(&type_hashset) {
+    match graph_init(&mimelist) {
         Err(why) => panic!("{:?}", why),
         Ok(graph) => {
             let type_graph = graph;
         },
     };
-    
-    /*match make_type_tree() {
-        Err(why) => panic!("{:?}", why),
-        Ok(ftypes) => println!("OK!"),
-    };*/
 }

@@ -1,2 +1,5 @@
 target
 Cargo.lock
+graph.dot
+graph.svg
+
