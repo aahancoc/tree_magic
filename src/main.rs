@@ -9,7 +9,6 @@ use petgraph::dot::{Dot, Config};
 
 fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
     let ftypes = File::open("/usr/share/mime/types")?;
-    //let ftypes = File::open("/usr/share/mime/subclasses")?;
     let rtypes = BufReader::new(ftypes);
     let mut mimelist = Vec::<String>::new();
     
@@ -18,20 +17,32 @@ fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
         mimelist.push(mime);
     }
     
-    // Don't forget "all/all"!
-    /*{
-        let mime = "all/all".to_string();
-        mimelist.push(mime);
-    }*/
-    
     let mimelist = mimelist;
     Ok(mimelist)
 }
 
-fn graph_init(mimelist: &Vec<String> ) -> Result<DiGraph<String, u32>, std::io::Error> {
+fn aliaslist_init() -> Result<Vec<(String, String)>, std::io::Error> {
+    let faliases = File::open("/usr/share/mime/aliases")?;
+    let raliases = BufReader::new(faliases);
+    let mut aliaslist = Vec::<(String, String)>::new();
+    
+    for line in raliases.lines() {
+        let line_raw = line?;
+    
+        let a = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
+        let b = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
+        aliaslist.push((a,b));
+    }
+    
+    let aliaslist = aliaslist;
+    Ok(aliaslist)
+}
+
+fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
 
     let fsubclasses = File::open("/usr/share/mime/subclasses")?;
     let rsubclasses = BufReader::new(fsubclasses);
+    
     let mut graph = DiGraph::<String, u32>::new();
     let mut added_mimes = HashMap::<String, NodeIndex>::new();
     
@@ -39,6 +50,11 @@ fn graph_init(mimelist: &Vec<String> ) -> Result<DiGraph<String, u32>, std::io::
     let mut node_octet: NodeIndex = NodeIndex::default();
     let mut node_allall: NodeIndex = NodeIndex::default();
     let mut node_allfiles: NodeIndex = NodeIndex::default();
+    
+    // Get list of MIME types
+    let mimelist = mimelist_init()?;
+    // Get list of MIME aliases (doesn't need to exist.)
+    let aliaslist = aliaslist_init().unwrap_or(Vec::<(String, String)>::new());
     
     // Create all nodes
     for mimetype in mimelist.iter() {
@@ -130,18 +146,7 @@ fn graph_init(mimelist: &Vec<String> ) -> Result<DiGraph<String, u32>, std::io::
 
 fn main() {
 
-    // Create HashMap with all nodes
-    let mimelist: Vec<String>;
-    match mimelist_init() {
-        Err(why) => panic!("{:?}", why),
-        Ok(out) => {
-            mimelist = out;
-        },
-    }
-    
-    //println!("{:?}", type_hashmap);
-
-    match graph_init(&mimelist) {
+    match graph_init() {
         Err(why) => panic!("{:?}", why),
         Ok(graph) => {
             let type_graph = graph;
