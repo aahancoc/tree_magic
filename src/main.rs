@@ -21,17 +21,17 @@ fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
     Ok(mimelist)
 }
 
-fn aliaslist_init() -> Result<Vec<(String, String)>, std::io::Error> {
+fn aliaslist_init() -> Result<HashMap<String, String>, std::io::Error> {
     let faliases = File::open("/usr/share/mime/aliases")?;
     let raliases = BufReader::new(faliases);
-    let mut aliaslist = Vec::<(String, String)>::new();
+    let mut aliaslist = HashMap::<String, String>::new();
     
     for line in raliases.lines() {
         let line_raw = line?;
     
         let a = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
         let b = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
-        aliaslist.push((a,b));
+        aliaslist.insert(a,b);
     }
     
     let aliaslist = aliaslist;
@@ -54,10 +54,25 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     // Get list of MIME types
     let mimelist = mimelist_init()?;
     // Get list of MIME aliases (doesn't need to exist.)
-    let aliaslist = aliaslist_init().unwrap_or(Vec::<(String, String)>::new());
+    let aliaslist = aliaslist_init().unwrap_or(HashMap::<String, String>::new());
     
     // Create all nodes
     for mimetype in mimelist.iter() {
+    
+        // Do not insert aliases
+        let mut mimetype = mimetype;
+        match aliaslist.get(mimetype) {
+            Some(alias) => {mimetype = alias;}
+            None => {}
+        }
+        let mimetype = mimetype;
+        
+        // Do not insert "x-content/*" or "multipart/*"
+        let toplevel = mimetype.split("/").nth(0).unwrap_or("");
+        if toplevel == "x-content" || toplevel == "multipart" {
+            continue;
+        }
+    
         let node = graph.add_node(mimetype.clone());
         added_mimes.insert(mimetype.clone(), node);
         
@@ -92,8 +107,20 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     // If a relation exists, add child to parent node
     for line in rsubclasses.lines() {
         let line_raw = line?;
-        let child_raw = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
-        let parent_raw = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
+        let mut child_raw = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
+        let mut parent_raw = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
+        
+        // If child or parent refers to an alias, change it to the real type
+        match aliaslist.get(&child_raw) {
+            Some(alias) => {child_raw = alias.clone();}
+            None => {}
+        }
+        match aliaslist.get(&parent_raw) {
+            Some(alias) => {parent_raw = alias.clone();}
+            None => {}
+        }
+        let child_raw = child_raw;
+        let parent_raw = parent_raw;
         
         let parent: NodeIndex;
         let child: NodeIndex;
@@ -123,7 +150,9 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
         let ref mimetype = graph[mimenode];
         let toplevel = mimetype.split("/").nth(0).unwrap_or("");
         
-        if mimenode == node_text || mimenode == node_octet {
+        if mimenode == node_text || mimenode == node_octet || 
+           mimenode == node_allfiles || mimenode == node_allall 
+        {
             continue;
         }
         
