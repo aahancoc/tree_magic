@@ -1,5 +1,4 @@
 extern crate petgraph;
-extern crate mime;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
@@ -7,6 +6,7 @@ use std::collections::HashMap;
 use petgraph::prelude::*;
 use petgraph::dot::{Dot, Config};
 
+// Get list of known system filetypes
 fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
     let ftypes = File::open("/usr/share/mime/types")?;
     let rtypes = BufReader::new(ftypes);
@@ -21,6 +21,7 @@ fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
     Ok(mimelist)
 }
 
+// Get filetype aliases
 fn aliaslist_init() -> Result<HashMap<String, String>, std::io::Error> {
     let faliases = File::open("/usr/share/mime/aliases")?;
     let raliases = BufReader::new(faliases);
@@ -38,6 +39,7 @@ fn aliaslist_init() -> Result<HashMap<String, String>, std::io::Error> {
     Ok(aliaslist)
 }
 
+// Initialize filetype graph
 fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
 
     let fsubclasses = File::open("/usr/share/mime/subclasses")?;
@@ -168,17 +170,33 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     graph.extend_with_edges(edge_list);
     
     let graph = graph;
-    println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
+    //println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 
     Ok(graph)
 }
 
+// Get mapping of mime to magic command
+fn magic_mapping_init() -> Result<HashMap<String, String>, std::io::Error>
+{
+    let fmagic = File::open("/usr/share/mime/magic")?;
+    let rmagic = BufReader::new(fmagic);
+    
+    let mut magic_mapping = HashMap::<String, String>::new();
+    
+    println!("{:?}", magic_mapping);
+    
+    Ok(magic_mapping)
+}
+
 fn main() {
 
+    let typegraph: DiGraph<String, u32>;
     match graph_init() {
         Err(why) => panic!("{:?}", why),
         Ok(graph) => {
-            let type_graph = graph;
+            typegraph = graph;
         },
     };
+    
+    
 }

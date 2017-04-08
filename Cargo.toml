@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
 
 [dependencies]
-petgraph ="^0"
-mime="^0.2"
+petgraph = "^0"
+nom = "^2"
