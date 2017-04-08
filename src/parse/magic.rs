@@ -1,5 +1,5 @@
 #[derive(Debug)]
-pub struct MagicRules {
+pub struct MagicRule {
     pub indent_level: u32,
     pub start_off: u32,
     pub val_len: u16,
@@ -12,13 +12,14 @@ pub struct MagicRules {
 #[derive(Debug)]
 pub struct MagicEntry {
     pub mime: String,
-    pub rules: Vec<MagicRules>
+    pub rules: Vec<MagicRule>
 }
 
 pub mod ruleset{
     extern crate nom;
     extern crate std;
     use std::str;
+    use nom::*;
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
     // but modified to be safe and provide defaults
@@ -45,7 +46,7 @@ pub mod ruleset{
         map_res!(
             delimited!(
                 delimited!(
-                    char!('['),
+                    tag!("\n["),
                     is_not!(":"),
                     char!(':')
                 ),
@@ -60,6 +61,13 @@ pub mod ruleset{
     fn mime_test() {
         assert_eq!(mime(&b"[90:text/plain]\n"[..]), IResult::Done(&b""[..], "text/plain"));
     }
+    
+    /*named!(blegh<bool>, 
+        do_parse!(
+            res: opt!(peek!(is_a!("012345689>"))) >>
+            (res.is_some())
+        )
+    );*/
 
 
     // Indent levels sub-parser for magic_rules
@@ -76,6 +84,7 @@ pub mod ruleset{
         assert_eq!(magic_rules_indent_level(&b"0>fgh"[..]).to_result().unwrap(), 0);
         assert_eq!(magic_rules_indent_level(&b"42>fgh"[..]).to_result().unwrap(), 42);
         assert_eq!(magic_rules_indent_level(&b">fgh"[..]).to_result().unwrap(), 0);
+        assert_eq!(magic_rules_indent_level(&b"xyz>fgh"[..]).to_result().is_err(), true);
     }
 
     // Start offset sub-parser for magic_rules
@@ -91,12 +100,23 @@ pub mod ruleset{
         assert_eq!(magic_rules_start_off(&b"0="[..]).to_result().unwrap(), 0);
         assert_eq!(magic_rules_start_off(&b"42="[..]).to_result().unwrap(), 42);
     }
+    
+    // Ensure first byte is not a [
+    /*named!(magic_rules_ismime,
+        peek!(tag!("["))
+    );*/
+    
+    /*#[test]
+    fn isrule_test() {
+        assert_eq!(magic_rules_isrule(&b"[90:xxx]"[..]).to_result().is_err(), true);
+        assert_eq!(magic_rules_isrule(&b"2>"[..]).to_result().is_err(), false);
+    }*/
 
     // Singular magic ruleset
-    named!(magic_rules<super::MagicRules>,
+    named!(magic_rules<super::MagicRule>,
+      
         do_parse!(
-            peek!(is_not!("[")) >>
-        
+            peek!(is_a!("012345689>")) >>
             _indent_level: magic_rules_indent_level >>
             tag!(">") >>
             _start_off: magic_rules_start_off >>
@@ -133,7 +153,7 @@ pub mod ruleset{
                 )
             ) >>
             
-            (super::MagicRules{
+            (super::MagicRule{
                 indent_level: _indent_level,
                 start_off: _start_off,
                 val: _val,
@@ -143,6 +163,7 @@ pub mod ruleset{
                 region_len: _region_len.unwrap_or(1)
             })
         )
+        
     );
 
     // Singular magic entry
@@ -166,9 +187,8 @@ pub mod ruleset{
     /// to a vector of MagicEntry structs
     named!(pub from_u8<Vec<super::MagicEntry>>,
         do_parse!(
-            tag!("MIME-Magic\0\n") >>
+            tag!("MIME-Magic\0") >>
             ret: many0!(magic_entry) >>
-            
             (ret)
         )
     );
@@ -196,12 +216,47 @@ pub mod ruleset{
 }
 
 // Functions to check if a file matches a magic entry
-/*pub mod test{
+pub mod test{
 
-fn file_matches_magic(file: &[u8], magic: MagicEntry)
-{
-    file.iter().skip(magic.val_len)
+/*    fn from_u8_singlerule(file: &[u8], rule: super::MagicRule) -> bool {
+    
+        let testarea: Vec<u8> = file.iter().skip(rule.start_off as usize).take(rule.val_len as usize + rule.region_len as usize).map(|&x| x).collect();
+        
+        //println!({:#?}, 
+    
+        /*let testarea = file[
+            rule.start_off as usize .. 
+            (
+                rule.start_off as usize +
+                rule.val_len as usize +
+                rule.region_len as usize
+            )
+        ];*/
+        
+        /*if testarea.windows(rule.val_len as usize).map(|&x| x).eq(rule.val.iter().map(|&x| x)) {
+            return true;
+        }*/
+
+        false
+    }
+    
+    /// Only test against the top rule
+    pub fn from_u8_toprule(file: &[u8], magic: super::MagicEntry) -> bool {
+        from_u8_singlerule(file, magic.rules[0])
+    }
+
+    /// Test against all rules
+    pub fn from_u8(file: &[u8], magic: super::MagicEntry) -> bool {
+    
+        for rule in magic.rules {
+                match from_u8_singlerule(file, rule) {
+                    true => return true,
+                    false => continue,
+                }
+        }
+        
+        false
+    }
+*/
 }
-
-}*/
 
