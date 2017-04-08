@@ -3,6 +3,7 @@ extern crate std;
 use nom::*;
 use std::str;
 
+#[derive(Debug)]
 pub struct MagicRules {
     pub indent_level: u32,
     pub start_off: u32,
@@ -13,7 +14,7 @@ pub struct MagicRules {
     pub region_len: u32
 }
 
-
+#[derive(Debug)]
 pub struct MagicEntry {
     pub mime: String,
     pub rules: Vec<MagicRules>
@@ -62,27 +63,46 @@ fn mime_test() {
     assert_eq!(mime(&b"[90:text/plain]\n"[..]), IResult::Done(&b""[..], "text/plain"));
 }
 
+
+// Indent levels sub-parser for magic_rules
+// Default value 0
+named!(magic_rules_indent_level<u32>,
+    do_parse!(
+        ret: take_until!(">") >> 
+        (buf_to_u32(ret, 0))
+    )
+);
+
+#[test]
+fn indent_level_test() {
+    assert_eq!(magic_rules_indent_level(&b"0>fgh"[..]).to_result().unwrap(), 0);
+    assert_eq!(magic_rules_indent_level(&b"42>fgh"[..]).to_result().unwrap(), 42);
+    assert_eq!(magic_rules_indent_level(&b">fgh"[..]).to_result().unwrap(), 0);
+}
+
+// Start offset sub-parser for magic_rules
+named!(magic_rules_start_off<u32>,
+    do_parse!(
+        ret: take_until!("=") >>
+        (buf_to_u32(ret, 0))
+    )
+);
+
+#[test]
+fn start_off_test() {
+    assert_eq!(magic_rules_start_off(&b"0="[..]).to_result().unwrap(), 0);
+    assert_eq!(magic_rules_start_off(&b"42="[..]).to_result().unwrap(), 42);
+}
+
 // Singular magic ruleset
 named!(magic_rules<MagicRules>,
     do_parse!(
-        is_not!("[") >>
-        
-         // indent level (default 0)
-        _indent_level: do_parse!(
-            ret: take_until!(">") >> 
-            (buf_to_u32(ret, 0))
-        ) >>
-        
+        peek!(is_not!("[")) >>
+    
+        _indent_level: magic_rules_indent_level >>
         tag!(">") >>
-        
-        // start offset
-        _start_off: do_parse!(
-            ret: take_until!("=") >>
-            (buf_to_u32(ret, 0))
-        )>> 
-        
+        _start_off: magic_rules_start_off >>
         tag!("=") >>
-        
         _val_len: u16!(nom::Endianness::Big) >> // length of value
         _val: do_parse!(
             ret: take!(_val_len) >>
@@ -98,17 +118,21 @@ named!(magic_rules<MagicRules>,
         ) >>
         
         // word size (default 1)
-        _word_len: do_parse!(
-            tag!("~") >>
-            ret: take_until!("+") >>
-            (buf_to_u32(ret, 1))
+        _word_len: opt!(
+            do_parse!(
+                tag!("~") >>
+                ret: take_until!("+") >>
+                (buf_to_u32(ret, 1))
+            )
         ) >>
         
         // length of region in file to check (default 1)
-        _region_len: do_parse!(
-            tag!("+") >>
-            ret: take_until!("\n") >>
-            (buf_to_u32(ret, 1))
+        _region_len: opt!(
+            do_parse!(
+                tag!("+") >>
+                ret: take_until!("\n") >>
+                (buf_to_u32(ret, 1))
+            )
         ) >>
         
         (MagicRules{
@@ -117,8 +141,8 @@ named!(magic_rules<MagicRules>,
             val: _val,
             val_len: _val_len,
             mask: _mask,
-            word_len: _word_len,
-            region_len: _region_len
+            word_len: _word_len.unwrap_or(1),
+            region_len: _region_len.unwrap_or(1)
         })
     )
 );
@@ -131,7 +155,7 @@ named!(magic_entry<MagicEntry>,
             (ret.to_string())
         ) >>
         
-        _rules: many1!(magic_rules) >>
+        _rules: many0!(magic_rules) >>
     
         (MagicEntry{
             mime: _mime,

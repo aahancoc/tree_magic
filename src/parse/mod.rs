@@ -1,1 +1,1 @@
-mod magic; 
+pub mod magic; 

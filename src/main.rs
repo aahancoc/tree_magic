@@ -1,3 +1,5 @@
+#[macro_use] extern crate nom;
+
 extern crate petgraph;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -5,6 +7,8 @@ use std::fs::File;
 use std::collections::HashMap;
 use petgraph::prelude::*;
 use petgraph::dot::{Dot, Config};
+mod parse;
+use parse::magic;
 
 // Get list of known system filetypes
 fn mimelist_init() -> Result<Vec<String>, std::io::Error> {
@@ -175,17 +179,22 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     Ok(graph)
 }
 
-// Get mapping of mime to magic command
-fn magic_mapping_init() -> Result<HashMap<String, String>, std::io::Error>
+// Get list of magic rulesets
+fn magic_ruleset_init() -> Result<Vec<magic::MagicEntry>, String>
 {
-    let fmagic = File::open("/usr/share/mime/magic")?;
-    let rmagic = BufReader::new(fmagic);
+    let fmagic = File::open("/usr/share/mime/magic").map_err(|e| e.to_string())?;
+    let mut rmagic = BufReader::new(fmagic);
+    let mut bmagic = Vec::<u8>::new();
+    rmagic.read_to_end(&mut bmagic).map_err(|e| e.to_string())?;
     
-    let mut magic_mapping = HashMap::<String, String>::new();
+    // Sorry. Error handling is messy.
+    let magic_ruleset = magic::magic_file(
+        bmagic.as_slice()
+    ).to_result().map_err(|e| e.to_string())?;
     
-    println!("{:?}", magic_mapping);
+    println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
     
-    Ok(magic_mapping)
+    Ok(magic_ruleset)
 }
 
 fn main() {
@@ -193,10 +202,18 @@ fn main() {
     let typegraph: DiGraph<String, u32>;
     match graph_init() {
         Err(why) => panic!("{:?}", why),
-        Ok(graph) => {
-            typegraph = graph;
+        Ok(out) => {
+            typegraph = out;
         },
     };
+    
+    let magic_ruleset: Vec<magic::MagicEntry>;
+    match magic_ruleset_init() {
+        Err(why) => panic!("{:?}", why),
+        Ok(out) => {
+            magic_ruleset = out;
+        },
+    }
     
     
 }
