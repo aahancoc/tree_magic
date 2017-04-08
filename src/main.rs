@@ -179,24 +179,6 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     Ok(graph)
 }
 
-// Get list of magic rulesets
-fn magic_ruleset_init() -> Result<Vec<magic::MagicEntry>, String>
-{
-    let fmagic = File::open("/usr/share/mime/magic").map_err(|e| e.to_string())?;
-    let mut rmagic = BufReader::new(fmagic);
-    let mut bmagic = Vec::<u8>::new();
-    rmagic.read_to_end(&mut bmagic).map_err(|e| e.to_string())?;
-    
-    // Sorry. Error handling is messy.
-    let magic_ruleset = magic::magic_file(
-        bmagic.as_slice()
-    ).to_result().map_err(|e| e.to_string())?;
-    
-    println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
-    
-    Ok(magic_ruleset)
-}
-
 fn main() {
 
     let typegraph: DiGraph<String, u32>;
@@ -208,7 +190,7 @@ fn main() {
     };
     
     let magic_ruleset: Vec<magic::MagicEntry>;
-    match magic_ruleset_init() {
+    match magic::ruleset::from_filepath("/usr/share/mime/magic") {
         Err(why) => panic!("{:?}", why),
         Ok(out) => {
             magic_ruleset = out;
