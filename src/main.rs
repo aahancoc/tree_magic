@@ -67,15 +67,14 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     let aliaslist = aliaslist_init().unwrap_or(HashMap::<String, String>::new());
     
     // Create all nodes
-    for mimetype in mimelist.iter() {
+    for x in mimelist.iter() {
     
         // Do not insert aliases
-        let mut mimetype = mimetype;
-        match aliaslist.get(mimetype) {
+        let mimetype;
+        match aliaslist.get(x) {
             Some(alias) => {mimetype = alias;}
-            None => {}
+            None => {mimetype = x;}
         }
-        let mimetype = mimetype;
         
         // Do not insert "x-content/*" or "multipart/*"
         let toplevel = mimetype.split("/").nth(0).unwrap_or("");
@@ -101,13 +100,13 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     if node_text == NodeIndex::default() {
         let mimetype = "text/plain".to_string();
         node_text = graph.add_node(mimetype.clone());
-        added_mimes.insert(mimetype.clone(), node_text);
+        added_mimes.insert(mimetype, node_text);
     }
     
     if node_octet == NodeIndex::default() {
         let mimetype = "application/octet-stream".to_string();
         node_octet = graph.add_node(mimetype.clone());
-        added_mimes.insert(mimetype.clone(), node_octet);
+        added_mimes.insert(mimetype, node_octet);
     }
     
     let node_text = node_text;
@@ -186,8 +185,8 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
 /// The meat. Gets the type of a file.
 fn get_type_from_filepath(
     node: Option<NodeIndex>,
-    typegraph: DiGraph<String, u32>, 
-    magic_ruleset: HashMap<String, Vec<magic::MagicRule>>,
+    typegraph: &DiGraph<String, u32>, 
+    magic_ruleset: &HashMap<String, Vec<magic::MagicRule>>,
     filepath: &str
 ) -> Option<String> {
 
@@ -209,7 +208,7 @@ fn get_type_from_filepath(
     // Walk the children
     let mut children = typegraph.neighbors_directed(parentnode, Outgoing).detach();
     while let Some(childnode) = children.next_node(&typegraph) {
-        let mimetype = typegraph[childnode].clone();
+        let ref mimetype = typegraph[childnode];
         
         //println!("{}", mimetype);
         
@@ -222,7 +221,7 @@ fn get_type_from_filepath(
         } else if magic::test::can_check(&mimetype) {
 
             let rule;
-            match magic_ruleset.get(&mimetype){
+            match magic_ruleset.get(mimetype){
                 Some(item) => rule = item,
                 None => continue, // ??
             }
@@ -237,7 +236,7 @@ fn get_type_from_filepath(
             Ok(res) => match res {
                 true => {
                     match get_type_from_filepath(
-                        Some(childnode), typegraph, magic_ruleset, filepath
+                        Some(childnode), &typegraph, &magic_ruleset, filepath
                     ) {
                         Some(foundtype) => return Some(foundtype),
                         None => return Some(mimetype.clone()),
@@ -282,7 +281,7 @@ fn main() {
     }
     
     for x in files {
-       println!("{}:\t{:?}", x, get_type_from_filepath(None, typegraph.clone(), magic_ruleset.clone(), x).unwrap_or("inode/none".to_string()));
+       println!("{}:\t{:?}", x, get_type_from_filepath(None, &typegraph, &magic_ruleset, x).unwrap_or("inode/none".to_string()));
     }
     
 }

@@ -177,7 +177,6 @@ pub mod ruleset {
     pub fn from_u8(b: &[u8]) -> Result<HashMap<String, Vec<super::MagicRule>>, String> {
         let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
         let mut res = HashMap::<String, Vec<super::MagicRule>>::new();
-        //let res: HashMap<String, Vec<super::MagicRule>> = HashMap::from_iter(tuplevec);
         
         for x in tuplevec {
             res.insert(x.0, x.1);
@@ -198,13 +197,10 @@ pub mod ruleset {
         let mut bmagic = Vec::<u8>::new();
         rmagic.read_to_end(&mut bmagic).map_err(|e| e.to_string())?;
         
-        let mut magic_ruleset = from_u8(
+        let magic_ruleset = from_u8(
             bmagic.as_slice()
         ).map_err(|e| e.to_string())?;
         
-        //println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
-        
-        let magic_ruleset = magic_ruleset;
         Ok(magic_ruleset)
     }
 
@@ -214,10 +210,10 @@ pub mod ruleset {
 pub mod test{
 
     extern crate std;
-    use std::collections::HashMap;
     
     fn from_vec_u8_singlerule(file: &Vec<u8>, rule: super::MagicRule) -> bool {
         
+        // Define our testing slice
         let ref testarea: Vec<u8> = *file;
         let testarea: Vec<u8> = testarea[
             std::cmp::min(
@@ -233,8 +229,23 @@ pub mod test{
             )
         ].to_vec();
         
+        // Search down until we find a hit
         for x in testarea.windows(rule.val_len as usize) {
-            if x.iter().eq(rule.val.iter()) {
+        
+            // Apply mask to value
+            let mut y: Vec<u8>;
+            
+            match rule.mask.clone() {
+                Some(mask) => {
+                    y = Vec::<u8>::new();
+                    for i in 0..rule.val_len {
+                        y.push(x[i as usize] & mask[i as usize]);
+                    }
+                },
+                None => y = x.to_vec(),
+            }
+        
+            if y.iter().eq(rule.val.iter()) {
                 return true;
             }
         }
@@ -266,7 +277,7 @@ pub mod test{
 
         // Get # of bytes to read
         let mut scanlen:u64  = 0;
-        for x in magic_rules.clone() {
+        for x in &magic_rules {
             let tmplen:u64 = 
                 x.start_off as u64 +
                 x.val_len as u64 +
@@ -277,7 +288,7 @@ pub mod test{
         }
         
         let f = File::open(filepath)?;
-        let mut r = BufReader::new(f);
+        let r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
         r.take(scanlen).read_to_end(&mut b)?;
         

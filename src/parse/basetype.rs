@@ -1,7 +1,5 @@
 // Handles "base types" such as inode/* and text/plain
 
-use std::collections::HashSet;
-
 const TYPES: [&'static str; 5] =
 [
     "all/all",
@@ -27,7 +25,7 @@ pub mod test {
         
         // Slurp up first 1024 (or less) bytes
         let f = File::open(filepath)?;
-        let mut r = BufReader::new(f);
+        let r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
         r.take(1024).read_to_end(&mut b)?;
         
