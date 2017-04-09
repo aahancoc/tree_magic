@@ -213,21 +213,29 @@ pub mod test{
     
     fn from_vec_u8_singlerule(file: &Vec<u8>, rule: super::MagicRule) -> bool {
         
-        // Define our testing slice
-        let ref testarea: Vec<u8> = *file;
-        let testarea: Vec<u8> = testarea[
+        // Check if we're even in bounds
+        let bound_min = std::cmp::min(
+            rule.start_off as usize,
+            rule.val.iter().count()
+        );
+        let bound_max =
             std::cmp::min(
-                rule.start_off as usize,
-                rule.val.iter().count()
-            ) .. std::cmp::min(
-                (
-                    rule.start_off as usize +
-                    rule.val_len as usize +
-                    rule.region_len as usize
-                ),
-                rule.val.iter().count()
-            )
-        ].to_vec();
+            (
+                rule.start_off as usize +
+                rule.val_len as usize +
+                rule.region_len as usize
+            ),
+            rule.val.iter().count()
+        );
+
+        if file.iter().count() < bound_max {
+            return false;
+        }
+        
+        // Define our testing slice
+        let ref x: Vec<u8> = *file;
+        let testarea: Vec<u8> = x[bound_min .. bound_max].to_vec();
+        //println!("{:?}, {:?}", file, testarea);
         
         // Search down until we find a hit
         for x in testarea.windows(rule.val_len as usize) {
@@ -276,12 +284,13 @@ pub mod test{
         use std::fs::File;
 
         // Get # of bytes to read
-        let mut scanlen:u64  = 0;
+        let mut scanlen:u64 = 0;
         for x in &magic_rules {
             let tmplen:u64 = 
                 x.start_off as u64 +
                 x.val_len as u64 +
                 x.region_len as u64;
+                
             if tmplen > scanlen {
                 scanlen = tmplen;
             }
