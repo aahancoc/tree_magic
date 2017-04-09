@@ -190,6 +190,8 @@ fn get_type_from_filepath(
     // Start at an outside unconnected node if no node given
     let parentnode: NodeIndex;
     
+    //println!{">>"};
+    
     match node {
         Some(foundnode) => parentnode = foundnode,
         None => {
@@ -206,16 +208,20 @@ fn get_type_from_filepath(
         let mimetype = typegraph[childnode].clone();
         let rule: magic::MagicEntry;
         
-        println!("{}", mimetype);
+        //println!("{}", mimetype);
         
-        if(mimetype == "all/all" || mimetype == "all/allfiles" || mimetype == "application/octet-stream") {
+        // For now, assume that the file is a file
+        if  mimetype == "all/all" ||
+            mimetype == "all/allfiles" ||
+            mimetype == "application/octet-stream" 
+        {
             return get_type_from_filepath(
                 Some(childnode), typegraph, magic_ruleset, filepath
             );
         }
         
         match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
-            Ok(Idx) => rule = magic_ruleset[Idx].clone(),
+            Ok(idx) => rule = magic_ruleset[idx].clone(),
             Err(_) => {continue;},
         }
         
@@ -231,7 +237,7 @@ fn get_type_from_filepath(
                 }
                 false => continue,
             },
-            Err(_) => return None,
+            Err(why) => panic!("{:?}", why),
         }
     }
     
@@ -256,7 +262,7 @@ fn main() {
         },
     }
     
-    println!("Result: {:?}", get_type_from_filepath(None, typegraph, magic_ruleset, "~/fafsa.pdf"));
+    println!("Result: {:?}", get_type_from_filepath(None, typegraph, magic_ruleset, "/home/aaron/Pictures/cat.png"));
     
     
 }

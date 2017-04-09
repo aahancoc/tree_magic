@@ -68,7 +68,7 @@ pub mod ruleset{
         map_res!(
             delimited!(
                 delimited!(
-                    tag!("\n["),
+                    char!('['),
                     is_not!(":"),
                     char!(':')
                 ),
@@ -156,6 +156,8 @@ pub mod ruleset{
                 )
             ) >>
             
+            take_until_and_consume!("\n") >>
+            
             (super::MagicRule{
                 indent_level: _indent_level,
                 start_off: _start_off,
@@ -190,7 +192,7 @@ pub mod ruleset{
     /// to a vector of MagicEntry structs
     named!(pub from_u8<Vec<super::MagicEntry>>,
         do_parse!(
-            tag!("MIME-Magic\0") >>
+            tag!("MIME-Magic\0\n") >>
             ret: many0!(magic_entry) >>
             (ret)
         )
@@ -237,7 +239,7 @@ pub mod test{
             )
         ].to_vec();
         
-        println!("{:#?}", testarea);
+        //println!("{:#?}", testarea);
         
         for x in testarea.windows(rule.val_len as usize) {
             if x.iter().eq(rule.val.iter()) {
@@ -256,6 +258,8 @@ pub mod test{
     /// Test against all rules
     pub fn from_vec_u8(file: Vec<u8>, magic: super::MagicEntry) -> bool {
     
+        //println!("Testing against {}...", magic.mime);
+    
         for rule in magic.rules {
                 match from_vec_u8_singlerule(&file, rule) {
                     true => return true,
@@ -270,6 +274,8 @@ pub mod test{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
+        
+        //println!("Testing file {} against magic.", filepath);
 
         let f = File::open(filepath)?;
         let mut r = BufReader::new(f);
