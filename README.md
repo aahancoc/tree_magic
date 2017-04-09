@@ -10,4 +10,4 @@ For the time being, all mime information and relation information is loaded from
 
 It is planned to have custom file checking functions for many types. For instance, everything that subclasses `application/zip` can be determined further by peeking at the zip's file structure. Files like scripts and program sources can be checked against a quick and dirty parser instead of the weird herusitics used now.
 
-Hopefully this will be quicker and more accurate than the standard libmagic approach. It's still rather a work in progress, though...
+Hopefully this will be quicker and more accurate than the standard libmagic approach. It's already quicker, actually. From a completely unscientific test of my Downloads folder, TreeMagic takes 0.283s while file-5.30 with -i flag needs 0.884s. Still kind of sucky on accuracy, though, but that's because this uses a different magic file and it's missing a lot of entries.

@@ -231,11 +231,16 @@ pub mod test{
         
         let ref testarea: Vec<u8> = *file;
         let testarea: Vec<u8> = testarea[
-            rule.start_off as usize .. 
-            (
-                rule.start_off as usize +
-                rule.val_len as usize +
-                rule.region_len as usize
+            std::cmp::min(
+                rule.start_off as usize,
+                rule.val.iter().count()
+            ) .. std::cmp::min(
+                (
+                    rule.start_off as usize +
+                    rule.val_len as usize +
+                    rule.region_len as usize
+                ),
+                rule.val.iter().count()
             )
         ].to_vec();
         
@@ -277,10 +282,22 @@ pub mod test{
         
         //println!("Testing file {} against magic.", filepath);
 
+        // Get # of bytes to read
+        let mut scanlen:u64  = 0;
+        for x in magic.rules.clone() {
+            let tmplen:u64 = 
+                x.start_off as u64 +
+                x.val_len as u64 +
+                x.region_len as u64;
+            if tmplen > scanlen {
+                scanlen = tmplen;
+            }
+        }
+        
         let f = File::open(filepath)?;
         let mut r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
-        r.read_to_end(&mut b)?; //Bad!
+        r.take(scanlen).read_to_end(&mut b)?; //Bad!
         
         Ok(from_vec_u8(b, magic))
     }
