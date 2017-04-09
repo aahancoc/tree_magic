@@ -39,11 +39,17 @@ impl Ord for MagicEntry {
 }
 
 
-pub mod ruleset{
+pub mod ruleset {
     extern crate nom;
     extern crate std;
     use std::str;
     use nom::*;
+    
+    // This is the catch-all when all else fails
+    // (but it's not that bad.)
+    pub fn can_check(mime: String) -> bool {
+        true
+    }
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
     // but modified to be safe and provide defaults
@@ -244,8 +250,6 @@ pub mod test{
             )
         ].to_vec();
         
-        //println!("{:#?}", testarea);
-        
         for x in testarea.windows(rule.val_len as usize) {
             if x.iter().eq(rule.val.iter()) {
                 return true;
@@ -255,15 +259,12 @@ pub mod test{
         false
     }
     
-    /// Only test against the top rule
-    /*pub fn from_u8_toprule(file: &[u8], magic: super::MagicEntry) -> bool {
-        from_u8_singlerule(file, magic.rules[0])
-    }*/
+    pub fn can_check(mimetype: &str) -> bool {
+        true
+    }
 
     /// Test against all rules
-    pub fn from_vec_u8(file: Vec<u8>, magic: super::MagicEntry) -> bool {
-    
-        //println!("Testing against {}...", magic.mime);
+    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str, magic: super::MagicEntry) -> bool {
     
         for rule in magic.rules {
                 match from_vec_u8_singlerule(&file, rule) {
@@ -275,12 +276,10 @@ pub mod test{
         false
     }
     
-    pub fn from_filepath(filepath: &str, magic: super::MagicEntry) -> Result<bool, std::io::Error>{
+    pub fn from_filepath(filepath: &str, mimetype: &str, magic: super::MagicEntry) -> Result<bool, std::io::Error>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
-        
-        //println!("Testing file {} against magic.", filepath);
 
         // Get # of bytes to read
         let mut scanlen:u64  = 0;
@@ -297,9 +296,9 @@ pub mod test{
         let f = File::open(filepath)?;
         let mut r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
-        r.take(scanlen).read_to_end(&mut b)?; //Bad!
+        r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_vec_u8(b, magic))
+        Ok(from_vec_u8(b, mimetype, magic))
     }
 
 }

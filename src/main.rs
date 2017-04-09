@@ -7,12 +7,11 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
 use std::collections::HashMap;
-use std::fs;
 use petgraph::prelude::*;
 use clap::{Arg, App};
 
 mod parse;
-use parse::magic;
+use parse::*;
 
 
 // Get list of known system filetypes
@@ -215,48 +214,28 @@ fn get_type_from_filepath(
         
         //println!("{}", mimetype);
         
-        // Test the 
-        /*if  (mimetype == "all/allfiles" ||
-            mimetype == "application/octet-stream")
-        {
-            return get_type_from_filepath(
-                Some(childnode), typegraph, magic_ruleset, filepath
-            );
-        }*/
+        let result: Result<bool, std::io::Error>;
         
-        
-        let meta = fs::metadata(filepath);
-        match meta {
-            Ok(meta) => {
-                if mimetype == "inode/directory" && meta.is_dir() {
-                    return Some(mimetype);
-                } else if mimetype == "all/allfiles" && meta.is_file() {
-                    return get_type_from_filepath(
-                        Some(childnode), typegraph, magic_ruleset, filepath
-                    );
-                } else if !meta.is_file() {
-                    // TODO: handle different inodes
-                    return None;
-                }
-            },
-            Err(_) => {continue;}
+        // Handle base types
+        if basetype::test::can_check(&mimetype){
+            result = basetype::test::from_filepath(filepath, &mimetype);
+
+        } else if magic::test::can_check(&mimetype) {
+            // Search for rule (TODO: Just make this a HashMap)
+            match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
+                Ok(idx) => rule = magic_ruleset[idx].clone(),
+                Err(_) => {continue;},
+            }
+            
+            result = magic::test::from_filepath(filepath, &mimetype, rule);
+        } else {
+            // Nothing can handle this
+            return None;
         }
         
-        // Automatically forward application/octet-stream
-        if mimetype == "application/octet-stream" {
-            return get_type_from_filepath(
-                Some(childnode), typegraph, magic_ruleset, filepath
-            );
-        }
+
         
-        // TODO: Handle text/plain. because that's totally broken right now
-        
-        match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
-            Ok(idx) => rule = magic_ruleset[idx].clone(),
-            Err(_) => {continue;},
-        }
-        
-        match magic::test::from_filepath(filepath, rule) {
+        match result {
             Ok(res) => match res {
                 true => {
                     match get_type_from_filepath(
