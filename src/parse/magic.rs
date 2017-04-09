@@ -240,8 +240,8 @@ pub mod init {
         for x in r.lines() {
             let line = x?;
             
-            let mut child_raw = line.split_whitespace().nth(0).unwrap_or("").to_string();
-            let mut parent_raw = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            let child_raw = line.split_whitespace().nth(0).unwrap_or("").to_string();
+            let parent_raw = line.split_whitespace().nth(1).unwrap_or("").to_string();
             
             subclasses.push( (parent_raw, child_raw) );
         }
@@ -331,8 +331,9 @@ pub mod test {
             // Apply mask to value
             let mut y: Vec<u8>;
             
-            match rule.mask.clone() {
-                Some(mask) => {
+            let ref rule_mask = rule.mask;
+            match *rule_mask {
+                Some(ref mask) => {
                     y = Vec::<u8>::new();
                     for i in 0..rule.val_len {
                         y.push(x[i as usize] & mask[i as usize]);
@@ -358,31 +359,47 @@ pub mod test {
     }
 
     /// Test against all rules
+    // This got really complicated really fast...
     pub fn from_vec_u8(
         file: Vec<u8>, mimetype: &str, magic_rules: Vec<super::MagicRule>
     ) -> bool {
     
-        if magic_rules.iter().count() < 2 {
-            for x in magic_rules {
-                match from_vec_u8_singlerule(&file, x) {
+        // Test every given rule
+        for i in 0..magic_rules.iter().count() {
+        
+            // If there aren't any rules ahead of us, just test the rule
+            if magic_rules.iter().count() - i < 2 {
+                let ref x = magic_rules[i];
+                match from_vec_u8_singlerule(&file, x.clone()) {
                     true => return true,
                     false => continue,
+                };
+            
+            // If there are rules ahead of us...
+            } else {
+                let x = magic_rules[i..magic_rules.iter().count()].windows(2).next();
+                let y;
+                
+                // Make sure that assumption was true
+                match x {
+                    Some(out) => y = out,
+                    None => continue,
                 }
-            }
-        
-        } else {
-    
-            for x in magic_rules.windows(2) {
-                    match from_vec_u8_singlerule(&file, x[0].clone()) {
-                        true => {
-                            if x[1].indent_level >= x[0].indent_level {
-                                continue;
-                            } else {
-                                return true;
-                            }
-                        },
-                        false => continue,
-                    }
+                
+                // Test the current rule
+                match from_vec_u8_singlerule(&file, y[0].clone()) {
+                    true => {
+                        // Check next indent level if needed
+                        if y[1].indent_level >= y[0].indent_level {
+                            continue;
+                        // Next indent level is lower, so this must be it
+                        } else {
+                            return true;
+                        }
+                    },
+                    // No match, so keep searching
+                    false => continue,
+                };
             }
         }
         
