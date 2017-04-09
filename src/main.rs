@@ -187,7 +187,7 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
 fn get_type_from_filepath(
     node: Option<NodeIndex>,
     typegraph: DiGraph<String, u32>, 
-    magic_ruleset: Vec<magic::MagicEntry>,
+    magic_ruleset: HashMap<String, Vec<magic::MagicRule>>,
     filepath: &str
 ) -> Option<String> {
 
@@ -210,7 +210,6 @@ fn get_type_from_filepath(
     let mut children = typegraph.neighbors_directed(parentnode, Outgoing).detach();
     while let Some(childnode) = children.next_node(&typegraph) {
         let mimetype = typegraph[childnode].clone();
-        let rule: magic::MagicEntry;
         
         //println!("{}", mimetype);
         
@@ -219,21 +218,20 @@ fn get_type_from_filepath(
         // Handle base types
         if basetype::test::can_check(&mimetype){
             result = basetype::test::from_filepath(filepath, &mimetype);
-
+        // Handle via magic
         } else if magic::test::can_check(&mimetype) {
-            // Search for rule (TODO: Just make this a HashMap)
-            match magic_ruleset.binary_search_by(|x| x.mime.cmp(&mimetype)) {
-                Ok(idx) => rule = magic_ruleset[idx].clone(),
-                Err(_) => {continue;},
+
+            let rule;
+            match magic_ruleset.get(&mimetype){
+                Some(item) => rule = item,
+                None => continue, // ??
             }
             
-            result = magic::test::from_filepath(filepath, &mimetype, rule);
+            result = magic::test::from_filepath(filepath, &mimetype, rule.clone());
+        // Nothing can handle this. Somehow.
         } else {
-            // Nothing can handle this
-            return None;
+            result = Ok(false);
         }
-        
-
         
         match result {
             Ok(res) => match res {
@@ -275,7 +273,7 @@ fn main() {
         },
     };
     
-    let magic_ruleset: Vec<magic::MagicEntry>;
+    let magic_ruleset: HashMap<String, Vec<magic::MagicRule>>;
     match magic::ruleset::from_filepath("/usr/share/mime/magic") {
         Err(why) => panic!("{:?}", why),
         Ok(out) => {

@@ -1,5 +1,4 @@
 extern crate std;
-use std::cmp::Ordering;
 
 #[derive(Debug, Clone)]
 pub struct MagicRule {
@@ -12,38 +11,12 @@ pub struct MagicRule {
     pub region_len: u32
 }
 
-#[derive(Debug, Clone)]
-pub struct MagicEntry {
-    pub mime: String,
-    pub rules: Vec<MagicRule>
-}
-
-impl PartialEq for MagicEntry {
-    fn eq(&self, other: &MagicEntry) -> bool {
-        self.mime == other.mime
-    }
-}
-
-impl Eq for MagicEntry {}
-
-impl PartialOrd for MagicEntry {
-    fn partial_cmp(&self, other: &MagicEntry) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MagicEntry {
-    fn cmp(&self, other: &MagicEntry) -> Ordering {
-        self.mime.cmp(&other.mime)
-    }
-}
-
-
 pub mod ruleset {
     extern crate nom;
     extern crate std;
     use std::str;
     use nom::*;
+    use std::collections::HashMap;
     
     // This is the catch-all when all else fails
     // (but it's not that bad.)
@@ -178,7 +151,7 @@ pub mod ruleset {
     );
 
     // Singular magic entry
-    named!(magic_entry<super::MagicEntry>,
+    named!(magic_entry<(String, Vec<super::MagicRule>)>,
         do_parse!(
             _mime: do_parse!(
                 ret: mime >>
@@ -187,25 +160,35 @@ pub mod ruleset {
             
             _rules: many0!(magic_rules) >>
         
-            (super::MagicEntry{
-                mime: _mime,
-                rules: _rules
-            })
+            (_mime, _rules)
         )
     );
 
     /// Converts a magic file given as a &[u8] array
     /// to a vector of MagicEntry structs
-    named!(pub from_u8<Vec<super::MagicEntry>>,
+    named!(from_u8_to_tuple_vec<Vec<(String, Vec<super::MagicRule>)>>,
         do_parse!(
             tag!("MIME-Magic\0\n") >>
             ret: many0!(magic_entry) >>
             (ret)
         )
     );
+    
+    pub fn from_u8(b: &[u8]) -> Result<HashMap<String, Vec<super::MagicRule>>, String> {
+        let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
+        let mut res = HashMap::<String, Vec<super::MagicRule>>::new();
+        //let res: HashMap<String, Vec<super::MagicRule>> = HashMap::from_iter(tuplevec);
+        
+        for x in tuplevec {
+            res.insert(x.0, x.1);
+        }
+        
+        Ok(res)
+        
+    }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    pub fn from_filepath(filepath: &str) -> Result<Vec<super::MagicEntry>, String>{
+    pub fn from_filepath(filepath: &str) -> Result<HashMap<String, Vec<super::MagicRule>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -217,11 +200,10 @@ pub mod ruleset {
         
         let mut magic_ruleset = from_u8(
             bmagic.as_slice()
-        ).to_result().map_err(|e| e.to_string())?;
+        ).map_err(|e| e.to_string())?;
         
         //println!("{:#?}, {}", magic_ruleset, magic_ruleset.iter().count());
         
-        magic_ruleset.sort();
         let magic_ruleset = magic_ruleset;
         Ok(magic_ruleset)
     }
@@ -232,6 +214,7 @@ pub mod ruleset {
 pub mod test{
 
     extern crate std;
+    use std::collections::HashMap;
     
     fn from_vec_u8_singlerule(file: &Vec<u8>, rule: super::MagicRule) -> bool {
         
@@ -264,10 +247,10 @@ pub mod test{
     }
 
     /// Test against all rules
-    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str, magic: super::MagicEntry) -> bool {
+    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str, magic_rules: Vec<super::MagicRule>) -> bool {
     
-        for rule in magic.rules {
-                match from_vec_u8_singlerule(&file, rule) {
+        for x in magic_rules {
+                match from_vec_u8_singlerule(&file, x) {
                     true => return true,
                     false => continue,
                 }
@@ -276,14 +259,14 @@ pub mod test{
         false
     }
     
-    pub fn from_filepath(filepath: &str, mimetype: &str, magic: super::MagicEntry) -> Result<bool, std::io::Error>{
+    pub fn from_filepath(filepath: &str, mimetype: &str, magic_rules: Vec<super::MagicRule>) -> Result<bool, std::io::Error>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
 
         // Get # of bytes to read
         let mut scanlen:u64  = 0;
-        for x in magic.rules.clone() {
+        for x in magic_rules.clone() {
             let tmplen:u64 = 
                 x.start_off as u64 +
                 x.val_len as u64 +
@@ -298,7 +281,7 @@ pub mod test{
         let mut b = Vec::<u8>::new();
         r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_vec_u8(b, mimetype, magic))
+        Ok(from_vec_u8(b, mimetype, magic_rules))
     }
 
 }
