@@ -1,4 +1,5 @@
 extern crate std;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
 pub struct MagicRule {
@@ -11,18 +12,18 @@ pub struct MagicRule {
     pub region_len: u32
 }
 
+lazy_static! {
+    static ref ALLRULES: HashMap<String, Vec<MagicRule>> = {
+        ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
+    };
+}
+
 pub mod ruleset {
     extern crate nom;
     extern crate std;
     use std::str;
     use nom::*;
     use std::collections::HashMap;
-    
-    // This is the catch-all when all else fails
-    // (but it's not that bad.)
-    pub fn can_check(mime: String) -> bool {
-        true
-    }
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
     // but modified to be safe and provide defaults
@@ -214,21 +215,6 @@ pub mod init {
     use std::io::BufReader;
     use std::fs::File;
     use std::collections::HashMap;
-    
-    // Get list of known system filetypes
-    fn read_mimelist() -> Result<Vec<String>, std::io::Error> {
-        let ftypes = File::open("/usr/share/mime/types")?;
-        let rtypes = BufReader::new(ftypes);
-        let mut mimelist = Vec::<String>::new();
-        
-        for line in rtypes.lines() {
-            let mime = line?.split_whitespace().nth(0).unwrap_or("").to_string();
-            mimelist.push(mime);
-        }
-        
-        let mimelist = mimelist;
-        Ok(mimelist)
-    }
 
     /// Read all subclass lines from file
     fn read_subclasses() -> Result<Vec<(String, String)>, std::io::Error> {
@@ -269,7 +255,8 @@ pub mod init {
     
     /// Get list of supported MIME types
     pub fn get_supported() -> Vec<String> {
-        read_mimelist().unwrap_or(Vec::<String>::new())
+        //read_mimelist().unwrap_or(Vec::<String>::new())
+        super::ALLRULES.keys().map(|x| x.clone()).collect()
     }
 
     /// Get list of parent -> child subclass links
@@ -351,11 +338,8 @@ pub mod test {
     }
     
     pub fn can_check(mimetype: &str) -> bool {
-        /*let list = super::init::get_supported();
         
-        list.contains(&mimetype.to_string())*/
-        
-        true
+        super::ALLRULES.contains_key(&mimetype.to_string())
     }
 
     /// Test against all rules
@@ -406,14 +390,20 @@ pub mod test {
         false
     }
     
-    pub fn from_filepath(filepath: &str, mimetype: &str, magic_rules: Vec<super::MagicRule>) -> Result<bool, std::io::Error>{
+    pub fn from_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
+        
+        // Get magic ruleset
+        let magic_rules = match super::ALLRULES.get(mimetype) {
+            Some(item) => item,
+            None => return Ok(false) // No rule for this mime
+        };
 
         // Get # of bytes to read
         let mut scanlen:u64 = 0;
-        for x in &magic_rules {
+        for x in magic_rules {
             let tmplen:u64 = 
                 x.start_off as u64 +
                 x.val_len as u64 +
@@ -429,7 +419,7 @@ pub mod test {
         let mut b = Vec::<u8>::new();
         r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_vec_u8(b, mimetype, magic_rules))
+        Ok(from_vec_u8(b, mimetype, magic_rules.clone()))
     }
 
 }

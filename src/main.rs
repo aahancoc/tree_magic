@@ -1,11 +1,9 @@
 #[macro_use] extern crate nom;
+#[macro_use] extern crate lazy_static;
 
 extern crate petgraph;
 extern crate clap;
 
-use std::io::prelude::*;
-use std::io::BufReader;
-use std::fs::File;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use petgraph::prelude::*;
@@ -14,8 +12,22 @@ use petgraph::prelude::*;
 mod parse;
 use parse::*;
 
+pub struct TypeStruct {
+    pub graph: DiGraph<String, u32>,
+    pub hash: HashMap<String, NodeIndex>
+}
+
+lazy_static! {
+    static ref TYPE: TypeStruct = {
+        graph_init().unwrap_or( TypeStruct{graph: DiGraph::new(), hash: HashMap::new()} )
+    };
+    
+    //static ref TYPEGRAPH: DiGraph<String, u32> = {TYPE.graph};
+    //static ref TYPEHASH: HashMap<String, NodeIndex> = {TYPE.1};
+}
+
 // Initialize filetype graph
-fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
+fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
     let mut graph = DiGraph::<String, u32>::new();
     let mut added_mimes = HashMap::<String, NodeIndex>::new();
@@ -28,21 +40,7 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     let mimelist = mimelist;
     
     // Create all nodes
-    for x in mimelist.iter() {
-    
-        // Do not insert aliases
-        let mimetype = x;
-        /*match aliaslist.get(x) {
-            Some(alias) => {mimetype = alias;}
-            None => {mimetype = x;}
-        }*/
-        
-        // Do not insert "x-content/*" or "multipart/*"
-        let toplevel = mimetype.split("/").nth(0).unwrap_or("");
-        if toplevel == "x-content" || toplevel == "multipart" {
-            continue;
-        }
-    
+    for mimetype in mimelist.iter() {
         let node = graph.add_node(mimetype.clone());
         added_mimes.insert(mimetype.clone(), node);
     }
@@ -57,18 +55,15 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
         let child_raw = x.0;
         let parent_raw = x.1;
         
-        let parent: NodeIndex;
-        let child: NodeIndex;
-        
-        match added_mimes.get(&parent_raw) {
-            Some(node) => {parent = *node;}
+        let parent = match added_mimes.get(&parent_raw) {
+            Some(node) => *node,
             None => {continue;}
-        }
+        };
         
-        match added_mimes.get(&child_raw) {
-            Some(node) => {child = *node;}
+        let child = match added_mimes.get(&child_raw) {
+            Some(node) => *node,
             None => {continue;}
-        }
+        };
         
         edge_list.insert( (child, parent) );
     }
@@ -77,21 +72,39 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     
     //Add to applicaton/octet-stream, all/all, or text/plain, depending on top-level
     //(We'll just do it here because having the graph makes it really nice)
-    let node_text = match added_mimes.get("text/plain"){
+    
+    let added_mimes_tmp = added_mimes.clone();
+    let node_text = match added_mimes_tmp.get("text/plain"){
         Some(x) => *x,
-        None => graph.add_node("text/plain".to_string())
+        None => {
+            let node = graph.add_node("text/plain".to_string());
+            added_mimes.insert("text/plain".to_string(), node);
+            node
+        }
     };
-    let node_octet = match added_mimes.get("application/octet-stream"){
+    let node_octet = match added_mimes_tmp.get("application/octet-stream"){
         Some(x) => *x,
-        None => graph.add_node("application/octet-stream".to_string())
+        None => {
+            let node = graph.add_node("application/octet-stream".to_string());
+            added_mimes.insert("application/octet-stream".to_string(), node);
+            node
+        }
     };
-    let node_allall = match added_mimes.get("all/all"){
+    let node_allall = match added_mimes_tmp.get("all/all"){
         Some(x) => *x,
-        None => graph.add_node("all/all".to_string())
+        None => {
+            let node = graph.add_node("all/all".to_string());
+            added_mimes.insert("all/all".to_string(), node);
+            node
+        }
     };
-    let node_allfiles = match added_mimes.get("all/allfiles"){
+    let node_allfiles = match added_mimes_tmp.get("all/allfiles"){
         Some(x) => *x,
-        None => graph.add_node("all/allfiles".to_string())
+        None => {
+            let node = graph.add_node("all/allfiles".to_string());
+            added_mimes.insert("all/allfiles".to_string(), node);
+            node
+        }
     };
     
     let mut edge_list_2 = HashSet::<(NodeIndex, NodeIndex)>::new();
@@ -118,28 +131,27 @@ fn graph_init() -> Result<DiGraph<String, u32>, std::io::Error> {
     graph.extend_with_edges(edge_list_2.difference(&edge_list));
     
     let graph = graph;
+    let added_mimes = added_mimes;
     //println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
 
-    Ok(graph)
+    Ok( TypeStruct{graph: graph, hash: added_mimes} )
 }
 
 /// The meat. Gets the type of a file.
 fn get_type_from_filepath(
     node: Option<NodeIndex>,
-    typegraph: &DiGraph<String, u32>, 
-    magic_ruleset: &HashMap<String, Vec<magic::MagicRule>>,
+    //typegraph: &DiGraph<String, u32>, 
+    //magic_ruleset: &HashMap<String, Vec<magic::MagicRule>>,
     filepath: &str
 ) -> Option<String> {
 
     // Start at an outside unconnected node if no node given
     let parentnode: NodeIndex;
     
-    //println!{">>"};
-    
     match node {
         Some(foundnode) => parentnode = foundnode,
         None => {
-            match typegraph.externals(Incoming).next() {
+            match TYPE.graph.externals(Incoming).next() {
                 Some(foundnode) => parentnode = foundnode,
                 None => panic!("No external nodes found!")
             }
@@ -147,11 +159,9 @@ fn get_type_from_filepath(
     }
     
     // Walk the children
-    let mut children = typegraph.neighbors_directed(parentnode, Outgoing).detach();
-    while let Some(childnode) = children.next_node(&typegraph) {
-        let ref mimetype = typegraph[childnode];
-        
-        //println!("{}", mimetype);
+    let mut children = TYPE.graph.neighbors_directed(parentnode, Outgoing).detach();
+    while let Some(childnode) = children.next_node(&TYPE.graph) {
+        let ref mimetype = TYPE.graph[childnode];
         
         let result: Result<bool, std::io::Error>;
         
@@ -160,14 +170,7 @@ fn get_type_from_filepath(
             result = basetype::test::from_filepath(filepath, &mimetype);
         // Handle via magic
         } else if magic::test::can_check(&mimetype) {
-
-            let rule;
-            match magic_ruleset.get(mimetype){
-                Some(item) => rule = item,
-                None => continue, // ??
-            }
-            
-            result = magic::test::from_filepath(filepath, &mimetype, rule.clone());
+            result = magic::test::from_filepath(filepath, &mimetype);
         // Nothing can handle this. Somehow.
         } else {
             result = Ok(false);
@@ -177,7 +180,7 @@ fn get_type_from_filepath(
             Ok(res) => match res {
                 true => {
                     match get_type_from_filepath(
-                        Some(childnode), &typegraph, &magic_ruleset, filepath
+                        Some(childnode), filepath
                     ) {
                         Some(foundtype) => return Some(foundtype),
                         None => return Some(mimetype.clone()),
@@ -198,7 +201,7 @@ fn main() {
 
     let args = App::new("TreeMagic")
         .version("0.1")
-        .about("Finds the MIME type of a file using FD.O Shared MIME database")
+        .about("Determines the MIME type of a file by traversing a filetype tree")
         .arg(Arg::with_name("file")
             .required(true)
             .index(1)
@@ -207,24 +210,30 @@ fn main() {
         .get_matches();
     let files: Vec<_> = args.values_of("file").unwrap().collect();
 
-    let typegraph: DiGraph<String, u32>;
+    /*let typegraph: DiGraph<String, u32>;
     match graph_init() {
         Err(why) => panic!("{:?}", why),
         Ok(out) => {
             typegraph = out;
         },
-    };
+    };*/
     
-    let magic_ruleset: HashMap<String, Vec<magic::MagicRule>>;
+    /*let magic_ruleset: HashMap<String, Vec<magic::MagicRule>>;
     match magic::ruleset::from_filepath("/usr/share/mime/magic") {
         Err(why) => panic!("{:?}", why),
         Ok(out) => {
             magic_ruleset = out;
         },
-    }
+    }*/
     
     for x in files {
-       println!("{}:\t{:?}", x, get_type_from_filepath(None, &typegraph, &magic_ruleset, x).unwrap_or("inode/none".to_string()));
+        println!(
+            "{}: {:?}", x, get_type_from_filepath(
+                None, x
+            ).unwrap_or(
+                "inode/empty".to_string()
+            )
+        );
     }
     
 }
