@@ -206,8 +206,96 @@ pub mod ruleset {
 
 }
 
+/// Init whatever is needed for test mod to work
+pub mod init {
+
+    extern crate std;
+    use std::io::prelude::*;
+    use std::io::BufReader;
+    use std::fs::File;
+    use std::collections::HashMap;
+    
+    // Get list of known system filetypes
+    fn read_mimelist() -> Result<Vec<String>, std::io::Error> {
+        let ftypes = File::open("/usr/share/mime/types")?;
+        let rtypes = BufReader::new(ftypes);
+        let mut mimelist = Vec::<String>::new();
+        
+        for line in rtypes.lines() {
+            let mime = line?.split_whitespace().nth(0).unwrap_or("").to_string();
+            mimelist.push(mime);
+        }
+        
+        let mimelist = mimelist;
+        Ok(mimelist)
+    }
+
+    /// Read all subclass lines from file
+    fn read_subclasses() -> Result<Vec<(String, String)>, std::io::Error> {
+    
+        let f = File::open("/usr/share/mime/subclasses")?;
+        let r = BufReader::new(f);
+        let mut subclasses = Vec::<(String, String)>::new();
+        
+        for x in r.lines() {
+            let line = x?;
+            
+            let mut child_raw = line.split_whitespace().nth(0).unwrap_or("").to_string();
+            let mut parent_raw = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            
+            subclasses.push( (parent_raw, child_raw) );
+        }
+        
+        Ok(subclasses)
+    }
+    
+    // Get filetype aliases
+    fn read_aliaslist() -> Result<HashMap<String, String>, std::io::Error> {
+        let faliases = File::open("/usr/share/mime/aliases")?;
+        let raliases = BufReader::new(faliases);
+        let mut aliaslist = HashMap::<String, String>::new();
+        
+        for line in raliases.lines() {
+            let line_raw = line?;
+        
+            let a = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
+            let b = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
+            aliaslist.insert(a,b);
+        }
+        
+        let aliaslist = aliaslist;
+        Ok(aliaslist)
+    }
+    
+    /// Get list of supported MIME types
+    pub fn get_supported() -> Vec<String> {
+        read_mimelist().unwrap_or(Vec::<String>::new())
+    }
+
+    /// Get list of parent -> child subclass links
+    pub fn get_subclasses() -> Vec<(String, String)> {
+    
+        let mut subclasses = read_subclasses().unwrap_or(Vec::<(String, String)>::new());
+        let aliaslist = read_aliaslist().unwrap_or(HashMap::<String, String>::new());
+        
+        // If child or parent refers to an alias, change it to the real type
+        for x in 0..subclasses.iter().count(){
+            match aliaslist.get(&subclasses[x].0) {
+                Some(alias) => {subclasses[x].0 = alias.clone();}
+                None => {}
+            }
+            match aliaslist.get(&subclasses[x].1) {
+                Some(alias) => {subclasses[x].1 = alias.clone();}
+                None => {}
+            }
+        }
+        
+        subclasses
+    }
+}
+
 // Functions to check if a file matches a magic entry
-pub mod test{
+pub mod test {
 
     extern crate std;
     
@@ -235,7 +323,7 @@ pub mod test{
         // Define our testing slice
         let ref x: Vec<u8> = *file;
         let testarea: Vec<u8> = x[bound_min .. bound_max].to_vec();
-        //println!("{:?}, {:?}", file, testarea);
+        //println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
         
         // Search down until we find a hit
         for x in testarea.windows(rule.val_len as usize) {
@@ -262,17 +350,40 @@ pub mod test{
     }
     
     pub fn can_check(mimetype: &str) -> bool {
+        /*let list = super::init::get_supported();
+        
+        list.contains(&mimetype.to_string())*/
+        
         true
     }
 
     /// Test against all rules
-    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str, magic_rules: Vec<super::MagicRule>) -> bool {
+    pub fn from_vec_u8(
+        file: Vec<u8>, mimetype: &str, magic_rules: Vec<super::MagicRule>
+    ) -> bool {
     
-        for x in magic_rules {
+        if magic_rules.iter().count() < 2 {
+            for x in magic_rules {
                 match from_vec_u8_singlerule(&file, x) {
                     true => return true,
                     false => continue,
                 }
+            }
+        
+        } else {
+    
+            for x in magic_rules.windows(2) {
+                    match from_vec_u8_singlerule(&file, x[0].clone()) {
+                        true => {
+                            if x[1].indent_level >= x[0].indent_level {
+                                continue;
+                            } else {
+                                return true;
+                            }
+                        },
+                        false => continue,
+                    }
+            }
         }
         
         false

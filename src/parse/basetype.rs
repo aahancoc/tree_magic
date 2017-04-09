@@ -9,6 +9,27 @@ const TYPES: [&'static str; 5] =
     "application/octet-stream"
 ];
 
+pub mod init {
+    
+    extern crate std;
+    
+    pub fn get_supported() -> Vec<String> {
+        super::TYPES.to_vec().iter().map(|x| x.to_string()).collect()
+    }
+    
+    /// Returns Vec of parent->child relations
+    pub fn get_subclasses() -> Vec<(String, String)> {
+        let mut res = Vec::<(String, String)>::new();
+        res.push( ("all/all".to_string(), "all/allfiles".to_string()) );
+        res.push( ("all/all".to_string(), "inode/directory".to_string()) );
+        res.push( ("all/allfiles".to_string(), "application/octet-stream".to_string()) );
+        res.push( ("application/octet-stream".to_string(), "text/plain".to_string()) );
+        
+        res
+    }
+    
+}
+
 pub mod test {
 
     extern crate std;
