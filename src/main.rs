@@ -3,11 +3,14 @@
 
 extern crate petgraph;
 extern crate clap;
+extern crate tabwriter;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
 use petgraph::prelude::*;
 //use petgraph::dot::{Dot, Config};
+use tabwriter::TabWriter;
+use std::io::Write;
 
 mod parse;
 use parse::*;
@@ -201,7 +204,7 @@ fn main() {
 
     let args = App::new("TreeMagic")
         .version("0.1")
-        .about("Determines the MIME type of a file by traversing a filetype tree")
+        .about("Determines the MIME type of a file by traversing a filetype tree.")
         .arg(Arg::with_name("file")
             .required(true)
             .index(1)
@@ -209,31 +212,20 @@ fn main() {
         )
         .get_matches();
     let files: Vec<_> = args.values_of("file").unwrap().collect();
-
-    /*let typegraph: DiGraph<String, u32>;
-    match graph_init() {
-        Err(why) => panic!("{:?}", why),
-        Ok(out) => {
-            typegraph = out;
-        },
-    };*/
     
-    /*let magic_ruleset: HashMap<String, Vec<magic::MagicRule>>;
-    match magic::ruleset::from_filepath("/usr/share/mime/magic") {
-        Err(why) => panic!("{:?}", why),
-        Ok(out) => {
-            magic_ruleset = out;
-        },
-    }*/
-    
+    let mut tw = TabWriter::new(vec![]);
     for x in files {
-        println!(
-            "{}: {:?}", x, get_type_from_filepath(
+        write!(&mut tw,
+            "{}:\t{:?}\n", x, get_type_from_filepath(
                 None, x
             ).unwrap_or(
                 "inode/empty".to_string()
             )
-        );
+        ).unwrap();
     }
+    
+    tw.flush().unwrap();
+    let out = String::from_utf8(tw.into_inner().unwrap()).unwrap_or("".to_string());
+    println!("{}", out);
     
 }
