@@ -285,7 +285,7 @@ pub mod test {
 
     extern crate std;
     
-    fn from_vec_u8_singlerule(file: &Vec<u8>, rule: super::MagicRule) -> bool {
+    fn from_u8_singlerule(file: &[u8], len: u32, rule: super::MagicRule) -> bool {
         
         // Check if we're even in bounds
         let bound_min = std::cmp::min(
@@ -302,13 +302,13 @@ pub mod test {
             rule.val.iter().count()
         );
 
-        if file.iter().count() < bound_max {
+        if (len as usize) < bound_max {
             return false;
         }
         
         // Define our testing slice
-        let ref x: Vec<u8> = *file;
-        let testarea: Vec<u8> = x[bound_min .. bound_max].to_vec();
+        let ref x: Vec<u8> = file.iter().take(len as usize).map(|&x| x).collect();
+        let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
         //println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
         
         // Search down until we find a hit
@@ -343,7 +343,7 @@ pub mod test {
 
     /// Test against all rules
     // This got really complicated really fast...
-    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str) -> bool {
+    pub fn from_u8(file: &[u8], len: u32, mimetype: &str) -> bool {
     
         // Get magic ruleset
         let magic_rules = match super::ALLRULES.get(mimetype) {
@@ -357,7 +357,7 @@ pub mod test {
             // If there aren't any rules ahead of us, just test the rule
             if magic_rules.iter().count() - i < 2 {
                 let ref x = magic_rules[i];
-                match from_vec_u8_singlerule(&file, x.clone()) {
+                match from_u8_singlerule(&file, len, x.clone()) {
                     true => return true,
                     false => continue,
                 };
@@ -374,7 +374,7 @@ pub mod test {
                 }
                 
                 // Test the current rule
-                match from_vec_u8_singlerule(&file, y[0].clone()) {
+                match from_u8_singlerule(&file, len, y[0].clone()) {
                     true => {
                         // Check next indent level if needed
                         if y[1].indent_level >= y[0].indent_level {
@@ -422,7 +422,7 @@ pub mod test {
         let mut b = Vec::<u8>::new();
         r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_vec_u8(b, mimetype))
+        Ok(from_u8(b.as_slice(), b.iter().count() as u32, mimetype))
     }
 
 }

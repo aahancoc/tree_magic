@@ -152,20 +152,20 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     Ok( TypeStruct{graph: graph, hash: added_mimes} )
 }
 
-/// Checks if the given byte stream matches the given MIME type.
+/// Checks if the given bytestream matches the given MIME type.
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
 /// the function will always return false.
-pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
+pub fn match_u8(mimetype: &str, bytes: &[u8], len: u32) -> bool
 {
     let result: bool;
     
     // Handle base types
     if basetype::test::can_check(&mimetype){
-        result = basetype::test::from_vec_u8(bytes, &mimetype);
+        result = basetype::test::from_u8(bytes, len, &mimetype);
     // Handle via magic
     } else if fdo_magic::test::can_check(&mimetype) {
-        result = fdo_magic::test::from_vec_u8(bytes, &mimetype);
+        result = fdo_magic::test::from_u8(bytes, len, &mimetype);
     // Nothing can handle this. Somehow.
     } else {
         result = false;
@@ -175,7 +175,7 @@ pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
 }
 
 
-/// Gets the type of a file from a bytesteam, starting at a certain node
+/// Gets the type of a file from a raw bytestream, starting at a certain node
 /// in the type graph.
 ///
 /// Returns mime as string wrapped in Some if a type matches, or
@@ -186,30 +186,18 @@ pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_vec_u8_node(node: Option<NodeIndex>, bytes: Vec<u8>) -> Option<String>
+pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: u32) -> Option<String>
 {
-    // Start at an outside unconnected node if no node given
-    let parentnode: NodeIndex;
-    
-    match node {
-        Some(foundnode) => parentnode = foundnode,
-        None => {
-            match TYPE.graph.externals(Incoming).next() {
-                Some(foundnode) => parentnode = foundnode,
-                None => return None
-            }
-        }
-    }
     
     // Walk the children
     let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
 
-        match match_vec_u8(bytes.clone(), mimetype) {
+        match match_u8(mimetype, bytes, len) {
             true => {
-                match from_vec_u8_node(
-                    Some(childnode), bytes
+                match from_u8_node(
+                    childnode, bytes, len
                 ) {
                     Some(foundtype) => return Some(foundtype),
                     None => return Some(mimetype.clone()),
@@ -222,20 +210,53 @@ pub fn from_vec_u8_node(node: Option<NodeIndex>, bytes: Vec<u8>) -> Option<Strin
     None
 }
 
+/// Checks if the given vector of bytes matches the given MIME type.
+///
+/// Returns true or false if it matches or not. If the given mime type is not known,
+/// the function will always return false.
+pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
+{
+    let len:u32 = bytes.iter().count() as u32;
+    match_u8(mimetype, bytes.as_slice(), len)
+}
+
+
+/// Gets the type of a file from a vector of bytes, starting at a certain node
+/// in the type graph.
+///
+/// Returns mime as string wrapped in Some if a type matches, or
+/// None if no match is found.
+/// Retreive the node from the `TYPE.hash` HashMap, using the MIME as the key.
+///
+/// ## Panics
+/// Will panic if the given node is not found in the graph.
+/// As the graph is immutable, this should not happen if the node index comes from
+/// TYPE.hash.
+pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<String>
+{
+    let len:u32 = bytes.iter().count() as u32;
+    from_u8_node(parentnode, bytes.as_slice(), len)
+}
+
 /// Gets the type of a file from a byte stream.
 ///
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
 /// it is a bug if this returns None.
 pub fn from_vec_u8(bytes: Vec<u8>) -> Option<String> {
-    from_vec_u8_node(None, bytes)
+
+    let node = match TYPE.graph.externals(Incoming).next() {
+        Some(foundnode) => foundnode,
+        None => return None
+    };
+    from_vec_u8_node(node, bytes)
 }
 
 /// Check if the given filepath matches the given MIME type.
 ///
 /// Returns true or false if it matches or not, or an Error if the file could
 /// not be read. If the given mime type is not known, it will always return false.
-pub fn match_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error> {
+pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::Error> {
 
     let result: Result<bool, std::io::Error>;
     
@@ -265,23 +286,8 @@ pub fn match_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::E
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_filepath_node(
-    node: Option<NodeIndex>,
-    filepath: &str
-) -> Option<String> {
-
-    // Start at an outside unconnected node if no node given
-    let parentnode: NodeIndex;
-    
-    match node {
-        Some(foundnode) => parentnode = foundnode,
-        None => {
-            match TYPE.graph.externals(Incoming).next() {
-                Some(foundnode) => parentnode = foundnode,
-                None => return None
-            }
-        }
-    }
+pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<String> 
+{
     
     // Walk the children
     let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
@@ -289,11 +295,11 @@ pub fn from_filepath_node(
     
         let ref mimetype = TYPE.graph[childnode];
         
-        match match_filepath(filepath, mimetype) {
+        match match_filepath(mimetype, filepath) {
             Ok(res) => match res {
                 true => {
                     match from_filepath_node(
-                        Some(childnode), filepath
+                        childnode, filepath
                     ) {
                         Some(foundtype) => return Some(foundtype),
                         None => return Some(mimetype.clone()),
@@ -315,5 +321,11 @@ pub fn from_filepath_node(
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if the file is not found or cannot be opened.
 pub fn from_filepath(filepath: &str) -> Option<String> {
-    from_filepath_node(None, filepath)
+
+    let node = match TYPE.graph.externals(Incoming).next() {
+        Some(foundnode) => foundnode,
+        None => return None
+    };
+    
+    from_filepath_node(node, filepath)
 }
