@@ -24,7 +24,7 @@ fn main() {
     let mut tw = TabWriter::new(vec![]);
     for x in files {
         write!(&mut tw,
-            "{}:\t{:?}\n", x, tree_magic::get_type_from_filepath(
+            "{}:\t{:?}\n", x, tree_magic::from_filepath(
                 None, x
             ).unwrap_or(
                 "inode/empty".to_string()

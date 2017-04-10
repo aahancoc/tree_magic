@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use petgraph::prelude::*;
 //use petgraph::dot::{Dot, Config};
 
-mod parse;
-use parse::*;
+mod magic;
+mod basetype;
 
 pub struct TypeStruct {
     pub graph: DiGraph<String, u32>,
@@ -138,10 +138,8 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 }
 
 /// The meat. Gets the type of a file.
-pub fn get_type_from_filepath(
+pub fn from_filepath(
     node: Option<NodeIndex>,
-    //typegraph: &DiGraph<String, u32>, 
-    //magic_ruleset: &HashMap<String, Vec<magic::MagicRule>>,
     filepath: &str
 ) -> Option<String> {
 
@@ -179,7 +177,7 @@ pub fn get_type_from_filepath(
         match result {
             Ok(res) => match res {
                 true => {
-                    match get_type_from_filepath(
+                    match from_filepath(
                         Some(childnode), filepath
                     ) {
                         Some(foundtype) => return Some(foundtype),
