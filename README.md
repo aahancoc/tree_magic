@@ -44,25 +44,25 @@ Right now the `fdo-magic` checker does not handle endianess. It also does not ha
 
 It is planned to have custom file checking functions for many types. Here's some ideas:
 
-    - `zip`: Everything that subclasses `application/zip` can be determined further by peeking at the zip's directory listing. 
-    
-    - `grep`: Text files such as program scripts and configuration files could be parsed with a regex (or whatever works best). 
-    
-    - `json`, `toml`, etc: Check the given file against a schema and return true if it matches. (By this point there should be few enough potential matches that it should be okay to load the entire file)
-    
-    - (specialized parsers): Binary (or text) files without any sort of magic can be checked for compliance against a quick and dirty `nom` parser instead of the weird heuristics used by libmagic.
+- `zip`: Everything that subclasses `application/zip` can be determined further by peeking at the zip's directory listing. 
+
+- `grep`: Text files such as program scripts and configuration files could be parsed with a regex (or whatever works best). 
+
+- `json`, `toml`, etc: Check the given file against a schema and return true if it matches. (By this point there should be few enough potential matches that it should be okay to load the entire file)
+
+- (specialized parsers): Binary (or text) files without any sort of magic can be checked for compliance against a quick and dirty `nom` parser instead of the weird heuristics used by libmagic.
 
 To add additional checker types, add a new module exporting:
 
-    - `init::get_supported() -> Vec<(String)>`
-    
-    - `init::get_subclasses() -> Vec<String, String)>`
-    
-    - `test::can_check(&str) -> bool`
-    
-    - `test::from_u8(&[u8], &str) -> bool`
-    
-    - `test::from_filpath(&str, &str) -> Result<bool, std::io::Error>`
+- `init::get_supported() -> Vec<(String)>`
+
+- `init::get_subclasses() -> Vec<String, String)>`
+
+- `test::can_check(&str) -> bool`
+
+- `test::from_u8(&[u8], &str) -> bool`
+
+- `test::from_filpath(&str, &str) -> Result<bool, std::io::Error>`
     
 and then add calls to those functions in `graph_init`, `match_u8` and `match_filepath` in `lib.rs`.
 
@@ -74,4 +74,4 @@ It would also be nice if we could cache which checkers support which files. We c
 
 ### Multiple file types
 
-There are some weird files out there ( [Polyglot quines](https://en.wikipedia.org/wiki/Polyglot_(computing\)) come to mind. ) that are multiple file types. This might be worth handling for security reasons. (It's not a huge priority, though.)
+There are some weird files out there ( [Polyglot quines](https://en.wikipedia.org/wiki/Polyglot_(computing)) come to mind. ) that are multiple file types. This might be worth handling for security reasons. (It's not a huge priority, though.)
