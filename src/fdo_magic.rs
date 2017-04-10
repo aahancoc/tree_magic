@@ -311,6 +311,7 @@ pub mod test {
         let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
         //println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
         
+        
         // Search down until we find a hit
         for x in testarea.windows(rule.val_len as usize) {
         
@@ -365,13 +366,12 @@ pub mod test {
             // If there are rules ahead of us...
             } else {
                 let x = magic_rules[i..magic_rules.iter().count()].windows(2).next();
-                let y;
                 
                 // Make sure that assumption was true
-                match x {
-                    Some(out) => y = out,
-                    None => continue,
-                }
+                let y = match x {
+                    Some(out) => out,
+                    None => {continue;},
+                };
                 
                 // Test the current rule
                 match from_u8_singlerule(&file, len, y[0].clone()) {

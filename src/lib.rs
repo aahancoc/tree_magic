@@ -4,7 +4,6 @@
 
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
-
 extern crate petgraph;
 
 use std::collections::HashMap;
@@ -14,7 +13,6 @@ use petgraph::prelude::*;
 
 mod fdo_magic;
 mod basetype;
-
 
 /// Information about currently loaded MIME types
 ///
@@ -207,6 +205,20 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: u32) -> Option<Str
     None
 }
 
+/// Gets the type of a file from a byte stream.
+///
+/// Returns mime as string wrapped in Some if a type matches, or
+/// None if no match is found. Because this starts from the type graph root,
+/// it is a bug if this returns None.
+pub fn from_u8(bytes: &[u8], len: u32) -> Option<String>
+{
+    let node = match TYPE.graph.externals(Incoming).next() {
+        Some(foundnode) => foundnode,
+        None => return None
+    };
+    from_u8_node(node, bytes, len)
+}
+
 /// Checks if the given vector of bytes matches the given MIME type.
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
@@ -235,7 +247,7 @@ pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<String>
     from_u8_node(parentnode, bytes.as_slice(), len)
 }
 
-/// Gets the type of a file from a byte stream.
+/// Gets the type of a file from a vector of bytes.
 ///
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
