@@ -3,18 +3,28 @@ name = "tree_magic"
 version = "0.1.0"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
+repository = "https://github.com/aahancoc/tree_magic/"
+readme = "README.md"
+keywords = ["mime", "filesystem", "media-types"]
+license = "MIT"
 
 [dependencies]
 petgraph = "^0"
 nom = "^2"
-clap = "^2"
 lazy_static = "^0.2"
-tabwriter = "^1"
+
+tabwriter = { version = "^1", optional = true }
+clap = { version = "^2", optional = true }
+
+[features]
+cli = ["clap", "tabwriter"]
+default = ["cli"]
 
 [lib]
 path = "src/lib.rs"
 crate-type = ["lib"]
 
 [[bin]]
+required-features = ["cli"]
 name = "tmagic"
 path = "src/main.rs"

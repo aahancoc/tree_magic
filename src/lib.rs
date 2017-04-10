@@ -36,9 +36,6 @@ lazy_static! {
     pub static ref TYPE: TypeStruct = {
         graph_init().unwrap_or( TypeStruct{graph: DiGraph::new(), hash: HashMap::new()} )
     };
-    
-    //static ref TYPEGRAPH: DiGraph<String, u32> = {TYPE.graph};
-    //static ref TYPEHASH: HashMap<String, NodeIndex> = {TYPE.1};
 }
 
 // Initialize filetype graph

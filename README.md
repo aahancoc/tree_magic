@@ -4,7 +4,9 @@ tree_magic is a Rust library that determines the file type a given file or byte 
 
 Unlike the typical approach that libmagic and file(1) uses, this loads all the file types in a graph based on subclasses. (EX: `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (MS Office 2007) subclasses `application/zip` which subclasses `application/octet-stream`) Then, instead of checking the file against *every* file type, it can traverse down the tree and only check the file types that make sense to check. (After all, the fastest check is the check that never gets run.)
 
-This library also provides the ability to check if a file is a certain type without going through the pains of checking it against every file type.
+This library also provides the ability to check if a file is a certain type without going through the process of checking it against every file type.
+
+A simple command-line client `tmagic` is also provided that acts as a replacement for `file -i`, excluding charset information.
 
 ## Performance
 
@@ -72,4 +74,4 @@ It would also be nice if we could cache which checkers support which files. We c
 
 ### Multiple file types
 
-There are some weird files out there ( [Polyglot quines](https://en.wikipedia.org/wiki/Polyglot_(computing\)) come to mind ) that are multiple file types. This might be worth handling for security reasons. (It's not a huge priority, though.)
+There are some weird files out there ( [Polyglot quines](https://en.wikipedia.org/wiki/Polyglot_(computing\)) come to mind. ) that are multiple file types. This might be worth handling for security reasons. (It's not a huge priority, though.)
