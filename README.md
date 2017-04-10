@@ -2,6 +2,8 @@
 
 tree_magic is a Rust library that determines the file type a given file or byte stream. 
 
+Read the documentation at https://docs.rs/tree_magic/
+
 Unlike the typical approach that libmagic and file(1) uses, this loads all the file types in a graph based on subclasses. (EX: `application/vnd.openxmlformats-officedocument.wordprocessingml.document` (MS Office 2007) subclasses `application/zip` which subclasses `application/octet-stream`) Then, instead of checking the file against *every* file type, it can traverse down the tree and only check the file types that make sense to check. (After all, the fastest check is the check that never gets run.)
 
 This library also provides the ability to check if a file is a certain type without going through the process of checking it against every file type.
