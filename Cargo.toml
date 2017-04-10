@@ -2,6 +2,7 @@
 name = "tree_magic"
 version = "0.1.0"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
+description = "Determines the MIME type of a file by traversing a filetype tree."
 
 [dependencies]
 petgraph = "^0"

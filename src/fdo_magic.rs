@@ -22,7 +22,6 @@ pub mod ruleset {
     extern crate nom;
     extern crate std;
     use std::str;
-    use nom::*;
     use std::collections::HashMap;
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
