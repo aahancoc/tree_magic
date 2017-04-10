@@ -1,5 +1,5 @@
 [package]
-name = "libtypemagic"
+name = "tree_magic"
 version = "0.1.0"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
 
@@ -9,3 +9,11 @@ nom = "^2"
 clap = "^2"
 lazy_static = "^0.2"
 tabwriter = "^1"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[[bin]]
+name = "tmagic"
+path = "src/main.rs"
