@@ -58,11 +58,6 @@ pub mod ruleset {
         )
     );
 
-    #[test]
-    fn mime_test() {
-        assert_eq!(mime(&b"[90:text/plain]\n"[..]), IResult::Done(&b""[..], "text/plain"));
-    }
-
     // Indent levels sub-parser for magic_rules
     // Default value 0
     named!(magic_rules_indent_level<u32>,
@@ -72,14 +67,6 @@ pub mod ruleset {
         )
     );
 
-    #[test]
-    fn indent_level_test() {
-        assert_eq!(magic_rules_indent_level(&b"0>fgh"[..]).to_result().unwrap(), 0);
-        assert_eq!(magic_rules_indent_level(&b"42>fgh"[..]).to_result().unwrap(), 42);
-        assert_eq!(magic_rules_indent_level(&b">fgh"[..]).to_result().unwrap(), 0);
-        assert_eq!(magic_rules_indent_level(&b"xyz>fgh"[..]).to_result().is_err(), true);
-    }
-
     // Start offset sub-parser for magic_rules
     named!(magic_rules_start_off<u32>,
         do_parse!(
@@ -87,12 +74,6 @@ pub mod ruleset {
             (buf_to_u32(ret, 0))
         )
     );
-
-    #[test]
-    fn start_off_test() {
-        assert_eq!(magic_rules_start_off(&b"0="[..]).to_result().unwrap(), 0);
-        assert_eq!(magic_rules_start_off(&b"42="[..]).to_result().unwrap(), 42);
-    }
 
     // Singular magic ruleset
     named!(magic_rules<super::MagicRule>,
@@ -254,7 +235,6 @@ pub mod init {
     
     /// Get list of supported MIME types
     pub fn get_supported() -> Vec<String> {
-        //read_mimelist().unwrap_or(Vec::<String>::new())
         super::ALLRULES.keys().map(|x| x.clone()).collect()
     }
 
@@ -265,7 +245,7 @@ pub mod init {
         let aliaslist = read_aliaslist().unwrap_or(HashMap::<String, String>::new());
         
         // If child or parent refers to an alias, change it to the real type
-        for x in 0..subclasses.iter().count(){
+        for x in 0..subclasses.len(){
             match aliaslist.get(&subclasses[x].0) {
                 Some(alias) => {subclasses[x].0 = alias.clone();}
                 None => {}
@@ -285,12 +265,12 @@ pub mod test {
 
     extern crate std;
     
-    fn from_u8_singlerule(file: &[u8], len: u32, rule: super::MagicRule) -> bool {
+    fn from_u8_singlerule(file: &[u8], len: usize, rule: super::MagicRule) -> bool {
         
         // Check if we're even in bounds
         let bound_min = std::cmp::min(
             rule.start_off as usize,
-            rule.val.iter().count()
+            rule.val.len()
         );
         let bound_max =
             std::cmp::min(
@@ -299,10 +279,10 @@ pub mod test {
                 rule.val_len as usize +
                 rule.region_len as usize
             ),
-            rule.val.iter().count()
+            rule.val.len()
         );
 
-        if (len as usize) < bound_max {
+        if (len) < bound_max {
             return false;
         }
         
@@ -311,17 +291,19 @@ pub mod test {
         let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
         //println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
         
+        // Apply mask to value
         
         // Search down until we find a hit
+        let mut y = Vec::<u8>::with_capacity(len);
         for x in testarea.windows(rule.val_len as usize) {
-        
-            // Apply mask to value
-            let mut y: Vec<u8>;
+
+            y.clear();
             
+            // Apply mask to value
             let ref rule_mask = rule.mask;
             match *rule_mask {
                 Some(ref mask) => {
-                    y = Vec::<u8>::new();
+
                     for i in 0..rule.val_len {
                         y.push(x[i as usize] & mask[i as usize]);
                     }
@@ -344,7 +326,7 @@ pub mod test {
 
     /// Test against all rules
     // This got really complicated really fast...
-    pub fn from_u8(file: &[u8], len: u32, mimetype: &str) -> bool {
+    pub fn from_u8(file: &[u8], len: usize, mimetype: &str) -> bool {
     
         // Get magic ruleset
         let magic_rules = match super::ALLRULES.get(mimetype) {
@@ -353,10 +335,10 @@ pub mod test {
         };
     
         // Test every given rule
-        for i in 0..magic_rules.iter().count() {
+        for i in 0..magic_rules.len() {
         
             // If there aren't any rules ahead of us, just test the rule
-            if magic_rules.iter().count() - i < 2 {
+            if magic_rules.len() - i < 2 {
                 let ref x = magic_rules[i];
                 match from_u8_singlerule(&file, len, x.clone()) {
                     true => return true,
@@ -365,7 +347,7 @@ pub mod test {
             
             // If there are rules ahead of us...
             } else {
-                let x = magic_rules[i..magic_rules.iter().count()].windows(2).next();
+                let x = magic_rules[i..magic_rules.len()].windows(2).next();
                 
                 // Make sure that assumption was true
                 let y = match x {
@@ -419,10 +401,10 @@ pub mod test {
         
         let f = File::open(filepath)?;
         let r = BufReader::new(f);
-        let mut b = Vec::<u8>::new();
+        let mut b = Vec::<u8>::with_capacity(scanlen as usize);
         r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_u8(b.as_slice(), b.iter().count() as u32, mimetype))
+        Ok(from_u8(b.as_slice(), b.len(), mimetype))
     }
 
 }

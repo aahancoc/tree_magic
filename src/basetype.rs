@@ -35,7 +35,7 @@ pub mod test {
     extern crate std;
     
     /// If there are any null bytes, return False. Otherwise return True.
-    fn is_text_plain_from_u8(b: &[u8], len: u32) -> bool {
+    fn is_text_plain_from_u8(b: &[u8], len: usize) -> bool {
         b.iter().take(len as usize).filter(|&x| *x == 0).count() == 0
     }
 
@@ -50,10 +50,10 @@ pub mod test {
         let mut b = Vec::<u8>::new();
         r.take(1024).read_to_end(&mut b)?;
         
-        Ok(is_text_plain_from_u8(b.as_slice(), b.iter().count() as u32))
+        Ok(is_text_plain_from_u8(b.as_slice(), b.len()))
     }
     
-    pub fn from_u8(b: &[u8], len: u32, mimetype: &str) -> bool {
+    pub fn from_u8(b: &[u8], len: usize, mimetype: &str) -> bool {
         if mimetype == "application/octet-stream" || mimetype == "all/allfiles" {
             // Both of these are the case if we have a bytestream at all
             return true;

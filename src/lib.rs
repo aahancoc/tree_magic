@@ -45,6 +45,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     // Get list of MIME types
     let mut mimelist = fdo_magic::init::get_supported();
     mimelist.extend(basetype::init::get_supported());
+    
     mimelist.sort();
     mimelist.dedup();
     let mimelist = mimelist;
@@ -60,7 +61,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     let mut edge_list_raw = basetype::init::get_subclasses();
     edge_list_raw.extend(fdo_magic::init::get_subclasses());
         
-    let mut edge_list = HashSet::<(NodeIndex, NodeIndex)>::new();
+    let mut edge_list = HashSet::<(NodeIndex, NodeIndex)>::with_capacity(edge_list_raw.len());
     for x in edge_list_raw {
         let child_raw = x.0;
         let parent_raw = x.1;
@@ -151,7 +152,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
 /// the function will always return false.
-pub fn match_u8(mimetype: &str, bytes: &[u8], len: u32) -> bool
+pub fn match_u8(mimetype: &str, bytes: &[u8], len: usize) -> bool
 {
     let result: bool;
     
@@ -181,7 +182,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8], len: u32) -> bool
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: u32) -> Option<String>
+pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<String>
 {
     
     // Walk the children
@@ -210,7 +211,7 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: u32) -> Option<Str
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
 /// it is a bug if this returns None.
-pub fn from_u8(bytes: &[u8], len: u32) -> Option<String>
+pub fn from_u8(bytes: &[u8], len: usize) -> Option<String>
 {
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
@@ -225,7 +226,7 @@ pub fn from_u8(bytes: &[u8], len: u32) -> Option<String>
 /// the function will always return false.
 pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
 {
-    let len:u32 = bytes.iter().count() as u32;
+    let len = bytes.len();
     match_u8(mimetype, bytes.as_slice(), len)
 }
 
@@ -243,7 +244,7 @@ pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
 /// TYPE.hash.
 pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<String>
 {
-    let len:u32 = bytes.iter().count() as u32;
+    let len = bytes.len();
     from_u8_node(parentnode, bytes.as_slice(), len)
 }
 
