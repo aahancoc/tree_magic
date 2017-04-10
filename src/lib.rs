@@ -18,7 +18,7 @@ pub struct TypeStruct {
 
 
 lazy_static! {
-    static ref TYPE: TypeStruct = {
+    pub static ref TYPE: TypeStruct = {
         graph_init().unwrap_or( TypeStruct{graph: DiGraph::new(), hash: HashMap::new()} )
     };
     
@@ -137,6 +137,55 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     Ok( TypeStruct{graph: graph, hash: added_mimes} )
 }
 
+pub fn from_vec_u8(node: Option<NodeIndex>, bytes: Vec<u8>) -> Option<String>
+{
+    // Start at an outside unconnected node if no node given
+    let parentnode: NodeIndex;
+    
+    match node {
+        Some(foundnode) => parentnode = foundnode,
+        None => {
+            match TYPE.graph.externals(Incoming).next() {
+                Some(foundnode) => parentnode = foundnode,
+                None => return None
+            }
+        }
+    }
+    
+    // Walk the children
+    let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
+    for childnode in children {
+        let ref mimetype = TYPE.graph[childnode];
+        
+        let result: bool;
+        
+        // Handle base types
+        if basetype::test::can_check(&mimetype){
+            result = basetype::test::from_vec_u8(bytes.clone(), &mimetype);
+        // Handle via magic
+        } else if magic::test::can_check(&mimetype) {
+            result = magic::test::from_vec_u8(bytes.clone(), &mimetype);
+        // Nothing can handle this. Somehow.
+        } else {
+            result = false;
+        }
+        
+        match result {
+            true => {
+                match from_vec_u8(
+                    Some(childnode), bytes
+                ) {
+                    Some(foundtype) => return Some(foundtype),
+                    None => return Some(mimetype.clone()),
+                }
+            }
+            false => continue,
+        }
+    }
+    
+    None
+}
+
 /// The meat. Gets the type of a file.
 pub fn from_filepath(
     node: Option<NodeIndex>,
@@ -151,7 +200,7 @@ pub fn from_filepath(
         None => {
             match TYPE.graph.externals(Incoming).next() {
                 Some(foundnode) => parentnode = foundnode,
-                None => panic!("No external nodes found!")
+                None => return None
             }
         }
     }
@@ -186,7 +235,8 @@ pub fn from_filepath(
                 }
                 false => continue,
             },
-            Err(why) => panic!("{:?}", why),
+            //Err(why) => panic!("{:?}", why),
+            Err(_) => return None
         }
     }
     

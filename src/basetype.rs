@@ -52,6 +52,18 @@ pub mod test {
         
         Ok(is_text_plain_from_vec_u8(b))
     }
+    
+    pub fn from_vec_u8(b: Vec<u8>, mimetype: &str) -> bool {
+        if mimetype == "application/octet-stream" || mimetype == "all/allfiles" {
+            // Both of these are the case if we have a bytestream at all
+            return true;
+        } if mimetype == "text/plain" {
+            return is_text_plain_from_vec_u8(b);
+        } else {
+            // ...how did we get bytes for this?
+            return false;
+        }
+    }
 
     pub fn can_check(mime: &str) -> bool {
         return super::TYPES.contains(&mime);

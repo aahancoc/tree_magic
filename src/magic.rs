@@ -344,9 +344,13 @@ pub mod test {
 
     /// Test against all rules
     // This got really complicated really fast...
-    pub fn from_vec_u8(
-        file: Vec<u8>, mimetype: &str, magic_rules: Vec<super::MagicRule>
-    ) -> bool {
+    pub fn from_vec_u8(file: Vec<u8>, mimetype: &str) -> bool {
+    
+        // Get magic ruleset
+        let magic_rules = match super::ALLRULES.get(mimetype) {
+            Some(item) => item,
+            None => return false // No rule for this mime
+        };
     
         // Test every given rule
         for i in 0..magic_rules.iter().count() {
@@ -419,7 +423,7 @@ pub mod test {
         let mut b = Vec::<u8>::new();
         r.take(scanlen).read_to_end(&mut b)?;
         
-        Ok(from_vec_u8(b, mimetype, magic_rules.clone()))
+        Ok(from_vec_u8(b, mimetype))
     }
 
 }
