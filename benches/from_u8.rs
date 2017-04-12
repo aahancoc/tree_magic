@@ -1,5 +1,5 @@
+#![feature(test)]
 mod from_u8 {
-    #![feature(test)]
     extern crate test;
     use self::test::Bencher;
     extern crate tree_magic;
@@ -22,7 +22,7 @@ mod from_u8 {
 
     /// Text tests
     #[bench]
-    fn test_plain(b: &mut Bencher) {
+    fn text_plain(b: &mut Bencher) {
         b.iter(|| tree_magic::from_u8(include_bytes!("text/plain")));
     }
 

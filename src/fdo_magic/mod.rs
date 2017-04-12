@@ -4,6 +4,11 @@ use std::collections::HashMap;
 #[cfg(feature="staticmime")] type MIME = &'static str;
 #[cfg(not(feature="staticmime"))] type MIME = String;
 
+// We can't have staticmime and sys_fdo_magic enabled
+// because we can't statically refer to a file on disk.
+#[cfg(all(feature="staticmime", any(feature="sys_fdo_magic", unix)))]
+const CONF_ERROR_CANNOT_USE_STATICMIME_WITH_SYS_FDO_MAGIC: u32 = ();
+
 #[derive(Debug, Clone)]
 pub struct MagicRule {
     pub indent_level: u32,
@@ -263,8 +268,8 @@ pub mod init {
         for x in r.lines() {
             let line = x?;
             
-            let child = line.split_whitespace().nth(0).unwrap_or("").to_string();
-            let parent = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
+            let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
             
             subclasses.push( (parent, child) );
         }

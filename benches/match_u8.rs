@@ -1,5 +1,5 @@
+#![feature(test)]
 mod match_u8 {
-    #![feature(test)]
     extern crate test;
     use self::test::Bencher;
     extern crate tree_magic;
