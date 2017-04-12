@@ -19,7 +19,8 @@ clap = { version = "^2", optional = true }
 
 [features]
 cli = ["clap", "tabwriter"]
-default = ["cli"]
+staticmime = []
+default = ["cli", "staticmime"]
 
 [lib]
 path = "src/lib.rs"

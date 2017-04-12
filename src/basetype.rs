@@ -1,4 +1,7 @@
-// Handles "base types" such as inode/* and text/plain
+//! Handles "base types" such as inode/* and text/plain
+
+#[cfg(feature="staticmime")] type MIME = &'static str;
+#[cfg(not(feature="staticmime"))] type MIME = String;
 
 const TYPES: [&'static str; 5] =
 [
@@ -10,16 +13,38 @@ const TYPES: [&'static str; 5] =
 ];
 
 pub mod init {
-    
+
     extern crate std;
+    use MIME;
     
-    pub fn get_supported() -> Vec<String> {
+    #[cfg(feature="staticmime")]
+    pub fn get_supported() -> Vec<MIME> {
+        super::TYPES.to_vec().iter().map(|x| *x).collect()
+    }
+    
+    #[cfg(not(feature="staticmime"))]
+    pub fn get_supported() -> Vec<MIME> {
         super::TYPES.to_vec().iter().map(|x| x.to_string()).collect()
     }
     
     /// Returns Vec of parent->child relations
-    pub fn get_subclasses() -> Vec<(String, String)> {
-        let mut res = Vec::<(String, String)>::new();
+    #[cfg(feature="staticmime")]
+    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
+        let mut res = Vec::<(MIME, MIME)>::new();
+
+        res.push( ("all/all", "all/allfiles") );
+        res.push( ("all/all", "inode/directory") );
+        res.push( ("all/allfiles", "application/octet-stream") );
+        res.push( ("application/octet-stream", "text/plain") );
+        
+        res
+    }
+    
+    #[cfg(not(feature="staticmime"))]
+    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
+        let mut res = Vec::<(MIME, MIME)>::new();
+
+        // There's probably a better way to do this.
         res.push( ("all/all".to_string(), "all/allfiles".to_string()) );
         res.push( ("all/all".to_string(), "inode/directory".to_string()) );
         res.push( ("all/allfiles".to_string(), "application/octet-stream".to_string()) );
@@ -33,6 +58,7 @@ pub mod init {
 pub mod test {
 
     extern crate std;
+    use MIME;
     
     /// If there are any null bytes, return False. Otherwise return True.
     fn is_text_plain_from_u8(b: &[u8], len: usize) -> bool {

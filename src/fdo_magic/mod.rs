@@ -1,6 +1,9 @@
 extern crate std;
 use std::collections::HashMap;
 
+#[cfg(feature="staticmime")] type MIME = &'static str;
+#[cfg(not(feature="staticmime"))] type MIME = String;
+
 #[derive(Debug, Clone)]
 pub struct MagicRule {
     pub indent_level: u32,
@@ -12,9 +15,26 @@ pub struct MagicRule {
     pub region_len: u32
 }
 
+#[cfg(not(feature="staticmime"))]
+macro_rules! convmime {
+    ($x:expr) => {$x.to_string()}
+}
+#[cfg(feature="staticmime")]
+macro_rules! convmime {
+    ($x:expr) => {$x}
+}
+
+#[cfg(not(feature="staticmime"))]
 lazy_static! {
-    static ref ALLRULES: HashMap<String, Vec<MagicRule>> = {
+    static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
         ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
+    };
+}
+#[cfg(feature="staticmime")]
+lazy_static! {
+    static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
+        const magic: &'static [u8] = include_bytes!("magic");
+        ruleset::from_u8(magic).unwrap_or(HashMap::new())
     };
 }
 
@@ -23,6 +43,8 @@ pub mod ruleset {
     extern crate std;
     use std::str;
     use std::collections::HashMap;
+    //use std::mem;
+    use MIME;
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
     // but modified to be safe and provide defaults
@@ -42,7 +64,8 @@ pub mod ruleset {
     }
 
     // Initial mime string
-    // Format: [priority: mime]         
+    // Format: [priority: mime]   
+    #[cfg(not(feature="staticmime"))]
     named!(mime<&str>,
         map_res!(
             delimited!(
@@ -55,6 +78,27 @@ pub mod ruleset {
                 tag!("]\n") 
             ),
             str::from_utf8
+        )
+    );
+    #[cfg(feature="staticmime")]
+    named!(mime<&'static str>,
+        do_parse!(
+            res: delimited!(
+                delimited!(
+                    char!('['),
+                    is_not!(":"),
+                    char!(':')
+                ),
+                is_not!("]"), // the mime
+                tag!("]\n") 
+            ) >>
+            // Yes I am aware that this is horribly dangerous
+            // but there is no reason this shouldn't be fine
+            // because the source is static and known and really
+            // a string is just a slice of u8s isn't it?
+            (unsafe{
+                std::mem::transmute(res)
+            })
         )
     );
 
@@ -77,7 +121,6 @@ pub mod ruleset {
 
     // Singular magic ruleset
     named!(magic_rules<super::MagicRule>,
-      
         do_parse!(
             peek!(is_a!("012345689>")) >>
             _indent_level: magic_rules_indent_level >>
@@ -132,7 +175,8 @@ pub mod ruleset {
     );
 
     // Singular magic entry
-    named!(magic_entry<(String, Vec<super::MagicRule>)>,
+    #[cfg(not(feature="staticmime"))]
+    named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
         do_parse!(
             _mime: do_parse!(
                 ret: mime >>
@@ -144,10 +188,23 @@ pub mod ruleset {
             (_mime, _rules)
         )
     );
+    #[cfg(feature="staticmime")]
+    named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
+        do_parse!(
+            _mime: do_parse!(
+                ret: mime >>
+                (ret)
+            ) >>
+            
+            _rules: many0!(magic_rules) >>
+        
+            (_mime, _rules)
+        )
+    );
 
     /// Converts a magic file given as a &[u8] array
     /// to a vector of MagicEntry structs
-    named!(from_u8_to_tuple_vec<Vec<(String, Vec<super::MagicRule>)>>,
+    named!(from_u8_to_tuple_vec<Vec<(MIME, Vec<super::MagicRule>)>>,
         do_parse!(
             tag!("MIME-Magic\0\n") >>
             ret: many0!(magic_entry) >>
@@ -155,9 +212,9 @@ pub mod ruleset {
         )
     );
     
-    pub fn from_u8(b: &[u8]) -> Result<HashMap<String, Vec<super::MagicRule>>, String> {
-        let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
-        let mut res = HashMap::<String, Vec<super::MagicRule>>::new();
+    pub fn from_u8(b: &[u8]) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String> {
+        let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;;
+        let mut res = HashMap::<MIME, Vec<super::MagicRule>>::new();
         
         for x in tuplevec {
             res.insert(x.0, x.1);
@@ -168,7 +225,8 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    pub fn from_filepath(filepath: &str) -> Result<HashMap<String, Vec<super::MagicRule>>, String>{
+    #[cfg(not(feature="staticmime"))]
+    pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -195,37 +253,69 @@ pub mod init {
     use std::io::BufReader;
     use std::fs::File;
     use std::collections::HashMap;
+    use MIME;
 
     /// Read all subclass lines from file
-    fn read_subclasses() -> Result<Vec<(String, String)>, std::io::Error> {
+    #[cfg(not(feature="staticmime"))]
+    fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
     
         let f = File::open("/usr/share/mime/subclasses")?;
         let r = BufReader::new(f);
-        let mut subclasses = Vec::<(String, String)>::new();
+        let mut subclasses = Vec::<(MIME, MIME)>::new();
         
         for x in r.lines() {
             let line = x?;
             
-            let child_raw = line.split_whitespace().nth(0).unwrap_or("").to_string();
-            let parent_raw = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            let child = line.split_whitespace().nth(0).unwrap_or("").to_string();
+            let parent = line.split_whitespace().nth(1).unwrap_or("").to_string();
             
             subclasses.push( (parent_raw, child_raw) );
         }
         
         Ok(subclasses)
     }
+    #[cfg(feature="staticmime")]
+    fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
+    
+        let r = include_str!("subclasses");
+        let mut subclasses = Vec::<(MIME, MIME)>::new();
+        
+        for line in r.lines() {
+            let child = line.split_whitespace().nth(0).unwrap_or("");
+            let parent = line.split_whitespace().nth(1).unwrap_or("");
+            
+            subclasses.push( (parent, child) );
+        }
+        
+        Ok(subclasses)
+    }
     
     // Get filetype aliases
-    fn read_aliaslist() -> Result<HashMap<String, String>, std::io::Error> {
+    #[cfg(not(feature="staticmime"))]
+    fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
         let faliases = File::open("/usr/share/mime/aliases")?;
         let raliases = BufReader::new(faliases);
-        let mut aliaslist = HashMap::<String, String>::new();
+        let mut aliaslist = HashMap::<MIME, MIME>::new();
+        
+        for x in raliases.lines() {
+            let line = x?;
+        
+            let a = line.split_whitespace().nth(0).unwrap_or("").to_string();
+            let b = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            aliaslist.insert(a,b);
+        }
+        
+        let aliaslist = aliaslist;
+        Ok(aliaslist)
+    }
+    #[cfg(feature="staticmime")]
+    fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
+        let raliases = include_str!("aliases");
+        let mut aliaslist = HashMap::<MIME, MIME>::new();
         
         for line in raliases.lines() {
-            let line_raw = line?;
-        
-            let a = line_raw.split_whitespace().nth(0).unwrap_or("").to_string();
-            let b = line_raw.split_whitespace().nth(1).unwrap_or("").to_string();
+            let a = line.split_whitespace().nth(0).unwrap_or("");
+            let b = line.split_whitespace().nth(1).unwrap_or("");
             aliaslist.insert(a,b);
         }
         
@@ -234,15 +324,20 @@ pub mod init {
     }
     
     /// Get list of supported MIME types
-    pub fn get_supported() -> Vec<String> {
+    #[cfg(not(feature="staticmime"))]
+    pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| x.clone()).collect()
+    }
+    #[cfg(feature="staticmime")]
+    pub fn get_supported() -> Vec<MIME> {
+        super::ALLRULES.keys().map(|x| *x).collect()
     }
 
     /// Get list of parent -> child subclass links
-    pub fn get_subclasses() -> Vec<(String, String)> {
+    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
     
-        let mut subclasses = read_subclasses().unwrap_or(Vec::<(String, String)>::new());
-        let aliaslist = read_aliaslist().unwrap_or(HashMap::<String, String>::new());
+        let mut subclasses = read_subclasses().unwrap_or(Vec::<(MIME, MIME)>::new());
+        let aliaslist = read_aliaslist().unwrap_or(HashMap::<MIME, MIME>::new());
         
         // If child or parent refers to an alias, change it to the real type
         for x in 0..subclasses.len(){
@@ -264,6 +359,7 @@ pub mod init {
 pub mod test {
 
     extern crate std;
+    use MIME;
     
     fn from_u8_singlerule(file: &[u8], len: usize, rule: super::MagicRule) -> bool {
         
@@ -320,8 +416,7 @@ pub mod test {
     }
     
     pub fn can_check(mimetype: &str) -> bool {
-        
-        super::ALLRULES.contains_key(&mimetype.to_string())
+        super::ALLRULES.contains_key(convmime!(mimetype))
     }
 
     /// Test against all rules

@@ -14,6 +14,9 @@ use petgraph::prelude::*;
 mod fdo_magic;
 mod basetype;
 
+#[cfg(feature="staticmime")] type MIME = &'static str;
+#[cfg(not(feature="staticmime"))] type MIME = String;
+
 /// Information about currently loaded MIME types
 ///
 /// The `graph` contains subclass relations between all given mimes.
@@ -24,8 +27,8 @@ mod basetype;
 /// The root of the graph is "all/all", so start traversing there unless
 /// you need to jump to a particular node.
 pub struct TypeStruct {
-    pub graph: DiGraph<String, u32>,
-    pub hash: HashMap<String, NodeIndex>
+    pub graph: DiGraph<MIME, u32>,
+    pub hash: HashMap<MIME, NodeIndex>
 }
 
 
@@ -36,11 +39,30 @@ lazy_static! {
     };
 }
 
+#[cfg(not(feature="staticmime"))]
+macro_rules! convmime {
+    ($x:expr) => {$x.to_string()}
+}
+#[cfg(feature="staticmime")]
+macro_rules! convmime {
+    ($x:expr) => {$x}
+}
+
+#[cfg(not(feature="staticmime"))]
+macro_rules! clonemime {
+    ($x:expr) => {$x.clone()}
+}
+#[cfg(feature="staticmime")]
+macro_rules! clonemime {
+    ($x:expr) => {$x}
+}
+
+
 // Initialize filetype graph
 fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
-    let mut graph = DiGraph::<String, u32>::new();
-    let mut added_mimes = HashMap::<String, NodeIndex>::new();
+    let mut graph = DiGraph::<MIME, u32>::new();
+    let mut added_mimes = HashMap::<MIME, NodeIndex>::new();
     
     // Get list of MIME types
     let mut mimelist = fdo_magic::init::get_supported();
@@ -52,8 +74,8 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
     // Create all nodes
     for mimetype in mimelist.iter() {
-        let node = graph.add_node(mimetype.clone());
-        added_mimes.insert(mimetype.clone(), node);
+        let node = graph.add_node(clonemime!(mimetype));
+        added_mimes.insert(clonemime!(mimetype), node);
     }
     
     // Get list of edges from each mod's init submod
@@ -83,37 +105,36 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
     //Add to applicaton/octet-stream, all/all, or text/plain, depending on top-level
     //(We'll just do it here because having the graph makes it really nice)
-    
     let added_mimes_tmp = added_mimes.clone();
     let node_text = match added_mimes_tmp.get("text/plain"){
         Some(x) => *x,
         None => {
-            let node = graph.add_node("text/plain".to_string());
-            added_mimes.insert("text/plain".to_string(), node);
+            let node = graph.add_node(convmime!("text/plain"));
+            added_mimes.insert(convmime!("text/plain"), node);
             node
         }
     };
     let node_octet = match added_mimes_tmp.get("application/octet-stream"){
         Some(x) => *x,
         None => {
-            let node = graph.add_node("application/octet-stream".to_string());
-            added_mimes.insert("application/octet-stream".to_string(), node);
+            let node = graph.add_node(convmime!("application/octet-stream"));
+            added_mimes.insert(convmime!("application/octet-stream"), node);
             node
         }
     };
     let node_allall = match added_mimes_tmp.get("all/all"){
         Some(x) => *x,
         None => {
-            let node = graph.add_node("all/all".to_string());
-            added_mimes.insert("all/all".to_string(), node);
+            let node = graph.add_node(convmime!("all/all"));
+            added_mimes.insert(convmime!("all/all"), node);
             node
         }
     };
     let node_allfiles = match added_mimes_tmp.get("all/allfiles"){
         Some(x) => *x,
         None => {
-            let node = graph.add_node("all/allfiles".to_string());
-            added_mimes.insert("all/allfiles".to_string(), node);
+            let node = graph.add_node(convmime!("all/allfiles"));
+            added_mimes.insert(convmime!("all/allfiles"), node);
             node
         }
     };
@@ -182,7 +203,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8], len: usize) -> bool
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<String>
+pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<MIME>
 {
     
     // Walk the children
@@ -196,7 +217,7 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<S
                     childnode, bytes, len
                 ) {
                     Some(foundtype) => return Some(foundtype),
-                    None => return Some(mimetype.clone()),
+                    None => return Some(clonemime!(mimetype)),
                 }
             }
             false => continue,
@@ -211,7 +232,7 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<S
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
 /// it is a bug if this returns None.
-pub fn from_u8(bytes: &[u8], len: usize) -> Option<String>
+pub fn from_u8(bytes: &[u8], len: usize) -> Option<MIME>
 {
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
@@ -242,7 +263,7 @@ pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<String>
+pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<MIME>
 {
     let len = bytes.len();
     from_u8_node(parentnode, bytes.as_slice(), len)
@@ -253,7 +274,7 @@ pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<String>
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
 /// it is a bug if this returns None.
-pub fn from_vec_u8(bytes: Vec<u8>) -> Option<String> {
+pub fn from_vec_u8(bytes: Vec<u8>) -> Option<MIME> {
 
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
@@ -296,7 +317,7 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::E
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<String> 
+pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME> 
 {
     
     // Walk the children
@@ -312,7 +333,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<Strin
                         childnode, filepath
                     ) {
                         Some(foundtype) => return Some(foundtype),
-                        None => return Some(mimetype.clone()),
+                        None => return Some(clonemime!(mimetype)),
                     }
                 }
                 false => continue,
@@ -330,7 +351,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<Strin
 /// Does not look at file name or extension, just the contents.
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if the file is not found or cannot be opened.
-pub fn from_filepath(filepath: &str) -> Option<String> {
+pub fn from_filepath(filepath: &str) -> Option<MIME> {
 
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,

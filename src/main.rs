@@ -6,6 +6,15 @@ extern crate tree_magic;
 use tabwriter::TabWriter;
 use std::io::prelude::*;
 
+#[cfg(not(feature="staticmime"))]
+macro_rules! convmime {
+    ($x:expr) => {$x.to_string()}
+}
+#[cfg(feature="staticmime")]
+macro_rules! convmime {
+    ($x:expr) => {$x}
+}
+
 fn main() {
 
     use clap::{Arg, App};
@@ -24,7 +33,7 @@ fn main() {
     let mut tw = TabWriter::new(vec![]);
     for x in files {
         write!(&mut tw,
-            "{}:\t{:?}\n", x, tree_magic::from_filepath(x).unwrap_or("inode/empty".to_string())
+            "{}:\t{:?}\n", x, tree_magic::from_filepath(x).unwrap_or(convmime!("inode/empty"))
         ).unwrap();
     }
     
