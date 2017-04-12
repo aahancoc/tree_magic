@@ -5,10 +5,12 @@
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
 extern crate petgraph;
+extern crate itertools;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
 use petgraph::prelude::*;
+use itertools::Itertools;
 //use petgraph::dot::{Dot, Config};
 
 mod fdo_magic;
@@ -16,6 +18,16 @@ mod basetype;
 
 #[cfg(feature="staticmime")] type MIME = &'static str;
 #[cfg(not(feature="staticmime"))] type MIME = String;
+
+/// Check these types first
+const TYPEORDER: [&'static str; 5] =
+[
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"application/zip",
+	"application/x-msdos-executable"
+];
 
 /// Information about currently loaded MIME types
 ///
@@ -203,9 +215,21 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// TYPE.hash.
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
+	// Get the most frequent children up top
+    let mut children: Vec<NodeIndex> = TYPE.graph
+		.neighbors_directed(parentnode, Outgoing)
+		.collect_vec();
+		
+	for i in 0..children.len() {
+		let x = children[i];
+		if TYPEORDER.contains(&&*TYPE.graph[x]) {
+			children.remove(i);
+			children.insert(0, x);
+		}
+	}
     
     // Walk the children
-    let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
+    //let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
 
@@ -276,10 +300,21 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::E
 pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME> 
 {
     
-    // Walk the children
-    let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
+    // Get the most frequent children up top
+    let mut children: Vec<NodeIndex> = TYPE.graph
+		.neighbors_directed(parentnode, Outgoing)
+		.collect_vec();
+		
+	for i in 0..children.len() {
+		let x = children[i];
+		if TYPEORDER.contains(&&*TYPE.graph[x]) {
+			children.remove(i);
+			children.insert(0, x);
+		}
+	}
+
+	// Walk the children
     for childnode in children {
-    
         let ref mimetype = TYPE.graph[childnode];
         
         match match_filepath(mimetype, filepath) {
