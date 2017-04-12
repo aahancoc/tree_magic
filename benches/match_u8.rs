@@ -15,23 +15,23 @@ mod match_u8 {
 
     ///Image benchmarks
     #[bench]
-    fn bench_image_gif(b: &mut Bencher) {
+    fn image_gif(b: &mut Bencher) {
         b.iter(|| tree_magic::match_u8("image/gif", include_bytes!("image/gif")));
     }
     #[bench]
-    fn bench_image_png(b: &mut Bencher) {
+    fn image_png(b: &mut Bencher) {
         b.iter(|| tree_magic::match_u8("image/png", include_bytes!("image/png")));
     }
 
     /// Archive tests
     #[bench]
-    fn bench_application_zip(b: &mut Bencher) {
+    fn application_zip(b: &mut Bencher) {
         b.iter(|| tree_magic::match_u8("application/zip", include_bytes!("application/zip")));
     }
 
     /// Text tests
     #[bench]
-    fn bench_text_plain(b: &mut Bencher) {
+    fn text_plain(b: &mut Bencher) {
         b.iter(|| tree_magic::match_u8("text/plain", include_bytes!("text/plain")));
     }
 

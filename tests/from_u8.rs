@@ -13,14 +13,14 @@ mod from_u8 {
 
     ///Image tests
     #[test]
-    fn from_u8_image_gif() {
+    fn image_gif() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/gif")),
             Some(convmime!("image/gif"))
         );
     }
     #[test]
-    fn from_u8_image_png() {
+    fn image_png() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/png")),
             Some(convmime!("image/png"))

@@ -1,23 +1,10 @@
 mod match_u8 {
     extern crate tree_magic;
 
-    #[cfg(not(feature="staticmime"))]
-    macro_rules! convmime {
-        ($x:expr) => {$x.to_string()}
-    }
-    #[cfg(feature="staticmime")]
-    macro_rules! convmime {
-        ($x:expr) => {$x}
-    }
-
     ///Image tests
     #[test]
     fn image_gif() {
         assert!(tree_magic::match_u8("image/gif", include_bytes!("image/gif")));
-    }
-    #[bench]
-    fn bench_image_gif(b: &mut Bencher) {
-        b.iter(|| tree_magic::match_u8("image/gif", include_bytes!("image/gif")));
     }
     #[test]
     fn image_png() {
