@@ -27,10 +27,11 @@ mod from_u8 {
         );
     }
     #[test]
-    fn image_x_ms_bmp() {
+	// GNU file reports image/x-ms-bmp
+    fn image_bmp() {
         assert_eq!(
-            tree_magic::from_u8(include_bytes!("image/x-ms-bmp")),
-            Some(convmime!("imageimage_x_ms_bmp/x-ms-bmp"))
+            tree_magic::from_u8(include_bytes!("image/bmp")),
+            Some(convmime!("image/bmp"))
         );
     }
     #[test]

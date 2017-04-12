@@ -11,8 +11,9 @@ mod match_u8 {
         assert!(tree_magic::match_u8("image/png", include_bytes!("image/png")));
     }
     #[test]
-    fn image_x_ms_bmp() {
-        assert!(tree_magic::match_u8("image/x-ms-bmp", include_bytes!("image/x-ms-bmp")));
+	// GNU file reports as image/x-ms-bmp
+    fn image_x_bmp() {
+        assert!(tree_magic::match_u8("image/bmp", include_bytes!("image/bmp")));
     }
     #[test]
     fn image_tiff() {

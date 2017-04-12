@@ -173,7 +173,7 @@ pub mod ruleset {
                 do_parse!(
                     tag!("+") >>
                     ret: take_until!("\n") >>
-                    (buf_to_u32(ret, 1))
+                    (buf_to_u32(ret, 0))
                 )
             ) >>
             
@@ -186,7 +186,7 @@ pub mod ruleset {
                 val_len: _val_len,
                 mask: _mask,
                 word_len: _word_len.unwrap_or(1),
-                region_len: _region_len.unwrap_or(1)
+                region_len: _region_len.unwrap_or(0)
             })
         )
         
@@ -365,53 +365,84 @@ pub mod test {
     fn from_u8_singlerule(file: &[u8], rule: super::MagicRule) -> bool {
         
         // Check if we're even in bounds
-        let bound_min = std::cmp::min(
-            rule.start_off as usize,
-            rule.val.len()
-        );
+        let bound_min = //std::cmp::min(
+            rule.start_off as usize;
+            //rule.val.len()
+        //);
         let bound_max =
-            std::cmp::min(
-            (
+            //std::cmp::min(
+            //(
                 rule.start_off as usize +
                 rule.val_len as usize +
-                rule.region_len as usize
-            ),
-            rule.val.len()
-        );
+                rule.region_len as usize;
+            //),
+            //rule.val.len()
+        //);
 
         if (file.len()) < bound_max {
             return false;
         }
-        
-        // Define our testing slice
-        let ref x: Vec<u8> = file.iter().take(file.len()).map(|&x| x).collect();
-        let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
-        //println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
-        
-        // Apply mask to value
-        
-        // Search down until we find a hit
-        let mut y = Vec::<u8>::with_capacity(file.len());
-        for x in testarea.windows(rule.val_len as usize) {
+		
+		if rule.region_len == 0 {
+			
+			//println!("Region == 0");
+			
+			match rule.mask {
+				None => {
+					//println!("\tMask == None");
+					let x: Vec<u8> = file.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
+					//println!("\t{:?} / {:?}", x, rule.val);
+					//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
+					return rule.val.iter().eq(x.iter());
+				},
+				Some(mask) => {
+					//println!("\tMask == Some, len == {}", mask.len());
+					let mut x: Vec<u8> = file.iter()
+						.skip(bound_min) // Skip to start of area
+						.take(bound_max - bound_min) // Take until end of area - region length
+						.map(|&x| x).collect(); // Convert to vector
+					let mut val: Vec<u8> = rule.val.iter().map(|&x| x).collect();
+					
+					assert_eq!(x.len(), mask.len());
+					for i in 0..std::cmp::min(x.len(), mask.len()) {
+						x[i] = x[i] & mask[i];
+						val[i] = val[i] & mask[i];
+					}
+					
+					return rule.val.iter().eq(x.iter());
+				}
+			}
+		
+		} else {
+			//println!("Region != 1");
+			// Define our testing slice
+			let ref x: Vec<u8> = file.iter().take(file.len()).map(|&x| x).collect();
+			let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
+			//println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
+			
+			// Search down until we find a hit
+			let mut y = Vec::<u8>::with_capacity(file.len());
+			for x in testarea.windows(rule.val_len as usize) {
 
-            y.clear();
-            
-            // Apply mask to value
-            let ref rule_mask = rule.mask;
-            match *rule_mask {
-                Some(ref mask) => {
+				y.clear();
+				
+				// Apply mask to value
+				let ref rule_mask = rule.mask;
+				match *rule_mask {
+					Some(ref mask) => {
 
-                    for i in 0..rule.val_len {
-                        y.push(x[i as usize] & mask[i as usize]);
-                    }
-                },
-                None => y = x.to_vec(),
-            }
-        
-            if y.iter().eq(rule.val.iter()) {
-                return true;
-            }
-        }
+						for i in 0..rule.val_len {
+							y.push(x[i as usize] & mask[i as usize]);
+						}
+					},
+					None => y = x.to_vec(),
+				}
+			
+				if y.iter().eq(rule.val.iter()) {
+					return true;
+				}
+			}
+		}
 
         false
     }
@@ -452,13 +483,17 @@ pub mod test {
                 };
                 
                 // Test the current rule
+				//println!("{}", mimetype);
                 match from_u8_singlerule(&file, y[0].clone()) {
                     true => {
+						//println!("\t\tMatch!");
                         // Check next indent level if needed
-                        if y[1].indent_level >= y[0].indent_level {
+                        if y[1].indent_level > y[0].indent_level {
+							//println!("\t\tContinuing...");
                             continue;
                         // Next indent level is lower, so this must be it
                         } else {
+							//println!("\t\tOkay!");
                             return true;
                         }
                     },
