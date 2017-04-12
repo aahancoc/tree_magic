@@ -15,6 +15,10 @@ mod match_u8 {
     fn image_gif() {
         assert!(tree_magic::match_u8("image/gif", include_bytes!("image/gif")));
     }
+    #[bench]
+    fn bench_image_gif(b: &mut Bencher) {
+        b.iter(|| tree_magic::match_u8("image/gif", include_bytes!("image/gif")));
+    }
     #[test]
     fn image_png() {
         assert!(tree_magic::match_u8("image/png", include_bytes!("image/png")));
@@ -73,5 +77,6 @@ mod match_u8 {
     fn text_plain() {
         assert!(tree_magic::match_u8("text/plain", include_bytes!("text/plain")));
     }
+    
 
 }
