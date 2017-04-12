@@ -222,7 +222,7 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    #[cfg(not(feature="sys_fdo_magic"))]
+    #[cfg(feature="sys_fdo_magic")]
     pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;

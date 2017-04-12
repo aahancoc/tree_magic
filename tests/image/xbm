@@ -1,0 +1,4 @@
+#define xbm_width 1
+#define xbm_height 1
+static unsigned char xbm_bits[] = {
+ 0x00 };
