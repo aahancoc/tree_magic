@@ -20,14 +20,51 @@ mod basetype;
 #[cfg(not(feature="staticmime"))] type MIME = String;
 
 /// Check these types first
-const TYPEORDER: [&'static str; 5] =
+const TYPEORDER: [&'static str; 6] =
 [
 	"image/png",
 	"image/jpeg",
 	"image/gif",
 	"application/zip",
-	"application/x-msdos-executable"
+	"application/x-msdos-executable",
+	"application/pdf"
 ];
+
+struct CheckerStruct {
+    from_u8: fn(&[u8], &str) -> bool,
+    from_filepath: fn(&str, &str) -> bool,
+    get_supported: fn() -> Vec<MIME>
+}
+
+/// List of checker functions
+lazy_static! {
+    static ref CHECKERS: Vec<CheckerStruct> = {vec![
+        CheckerStruct{
+            from_u8: fdo_magic::check::from_u8,
+            from_filepath: fdo_magic::check::from_filepath,
+            get_supported: fdo_magic::init::get_supported
+        }, 
+        CheckerStruct{
+            from_u8: basetype::check::from_u8,
+            from_filepath: basetype::check::from_filepath,
+            get_supported: basetype::init::get_supported
+        }
+    ]};
+}
+
+/// Mappings between modules and supported mimes (by index in table above)
+lazy_static! {
+    static ref CHECKER_SUPPORT: HashMap<MIME, usize> = {
+        let mut out = HashMap::<MIME, usize>::new();
+        for i in 0..CHECKERS.len() {
+            let supported_types = (CHECKERS[i].get_supported)();
+            for j in supported_types {
+                out.insert(j, i);
+            }
+        }
+        out
+    };
+}
 
 /// Information about currently loaded MIME types
 ///
@@ -179,26 +216,54 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     Ok( TypeStruct{graph: graph, hash: added_mimes} )
 }
 
+/// Just the part of from_*_node that walks the graph
+fn typegraph_walker<T: Clone>(
+    parentnode: NodeIndex,
+    input: T,
+    matchfn: fn(&str, T) -> bool
+) -> Option<MIME> {
+
+    let mut children: Vec<NodeIndex> = TYPE.graph
+        .neighbors_directed(parentnode, Outgoing)
+        .collect_vec();
+        
+    for i in 0..children.len() {
+        let x = children[i];
+        if TYPEORDER.contains(&&*TYPE.graph[x]) {
+            children.remove(i);
+            children.insert(0, x);
+        }
+    }
+
+    for childnode in children {
+        let ref mimetype = TYPE.graph[childnode];
+        let result = (matchfn)(mimetype, input.clone());
+        match result {
+            true => {
+                match typegraph_walker(
+                    childnode, input, matchfn
+                ) {
+                    Some(foundtype) => return Some(foundtype),
+                    None => return Some(clonemime!(mimetype)),
+                }
+            }
+            false => continue,
+        }
+    }
+    
+    None
+}
+
 /// Checks if the given bytestream matches the given MIME type.
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
 /// the function will always return false.
 pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
-    let result: bool;
-    
-    // Handle base types
-    if basetype::check::can_check(&mimetype){
-        result = basetype::check::from_u8(bytes, &mimetype);
-    // Handle via magic
-    } else if fdo_magic::check::can_check(&mimetype) {
-        result = fdo_magic::check::from_u8(bytes, &mimetype);
-    // Nothing can handle this. Somehow.
-    } else {
-        result = false;
+    match CHECKER_SUPPORT.get(mimetype) {
+        None => false,
+        Some(x) => (CHECKERS[*x].from_u8)(bytes, &mimetype)
     }
-    
-    result
 }
 
 
@@ -215,38 +280,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// TYPE.hash.
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
-	// Get the most frequent children up top
-    let mut children: Vec<NodeIndex> = TYPE.graph
-		.neighbors_directed(parentnode, Outgoing)
-		.collect_vec();
-		
-	for i in 0..children.len() {
-		let x = children[i];
-		if TYPEORDER.contains(&&*TYPE.graph[x]) {
-			children.remove(i);
-			children.insert(0, x);
-		}
-	}
-    
-    // Walk the children
-    //let children = TYPE.graph.neighbors_directed(parentnode, Outgoing);
-    for childnode in children {
-        let ref mimetype = TYPE.graph[childnode];
-
-        match match_u8(mimetype, bytes) {
-            true => {
-                match from_u8_node(
-                    childnode, bytes
-                ) {
-                    Some(foundtype) => return Some(foundtype),
-                    None => return Some(clonemime!(mimetype)),
-                }
-            }
-            false => continue,
-        }
-    }
-    
-    None
+	typegraph_walker(parentnode, bytes, match_u8)
 }
 
 /// Gets the type of a file from a byte stream.
@@ -267,22 +301,12 @@ pub fn from_u8(bytes: &[u8]) -> Option<MIME>
 ///
 /// Returns true or false if it matches or not, or an Error if the file could
 /// not be read. If the given mime type is not known, it will always return false.
-pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::Error> {
-
-    let result: Result<bool, std::io::Error>;
-    
-    // Handle base types
-    if basetype::check::can_check(&mimetype){
-        result = basetype::check::from_filepath(filepath, &mimetype);
-    // Handle via magic
-    } else if fdo_magic::check::can_check(&mimetype) {
-        result = fdo_magic::check::from_filepath(filepath, &mimetype);
-    // Nothing can handle this. Somehow.
-    } else {
-        result = Ok(false);
+pub fn match_filepath(mimetype: &str, filepath: &str) -> bool 
+{
+    match CHECKER_SUPPORT.get(mimetype) {
+        None => false,
+        Some(x) => (CHECKERS[*x].from_filepath)(filepath, &mimetype)
     }
-    
-    result
 }
 
 
@@ -299,42 +323,7 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::E
 /// TYPE.hash.
 pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME> 
 {
-    
-    // Get the most frequent children up top
-    let mut children: Vec<NodeIndex> = TYPE.graph
-		.neighbors_directed(parentnode, Outgoing)
-		.collect_vec();
-		
-	for i in 0..children.len() {
-		let x = children[i];
-		if TYPEORDER.contains(&&*TYPE.graph[x]) {
-			children.remove(i);
-			children.insert(0, x);
-		}
-	}
-
-	// Walk the children
-    for childnode in children {
-        let ref mimetype = TYPE.graph[childnode];
-        
-        match match_filepath(mimetype, filepath) {
-            Ok(res) => match res {
-                true => {
-                    match from_filepath_node(
-                        childnode, filepath
-                    ) {
-                        Some(foundtype) => return Some(foundtype),
-                        None => return Some(clonemime!(mimetype)),
-                    }
-                }
-                false => continue,
-            },
-            //Err(why) => panic!("{:?}", why),
-            Err(_) => return None
-        }
-    }
-    
-    None
+    typegraph_walker(parentnode, filepath, match_filepath)
 }
 
 /// Gets the type of a file from a filepath.

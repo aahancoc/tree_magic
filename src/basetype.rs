@@ -66,18 +66,24 @@ pub mod check {
         b.iter().filter(|&x| *x == 0).count() == 0
     }
 
-    fn is_text_plain_from_filepath(filepath: &str) -> Result<bool, std::io::Error> {
+    fn is_text_plain_from_filepath(filepath: &str) -> bool {
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
         
-        // Slurp up first 1024 (or less) bytes
-        let f = File::open(filepath)?;
+        // Slurp up first 512 (or less) bytes
+        let f = match File::open(filepath) {
+            Ok(x) => x,
+            Err(_) => return false
+        };
         let r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
-        r.take(512).read_to_end(&mut b)?;
+        match r.take(512).read_to_end(&mut b) {
+            Ok(_) => {},
+            Err(_) => return false
+        }
         
-        Ok(is_text_plain_from_u8(b.as_slice()))
+        is_text_plain_from_u8(b.as_slice())
     }
     
     pub fn from_u8(b: &[u8], mimetype: &str) -> bool {
@@ -91,22 +97,23 @@ pub mod check {
             return false;
         }
     }
-
-    pub fn can_check(mimetype: &str) -> bool {
-        return super::TYPES.contains(&mimetype);
-    }
     
-    pub fn from_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error>{
+    pub fn from_filepath(filepath: &str, mimetype: &str) -> bool{
     
         use std::fs;
-        let meta = fs::metadata(filepath)?;
+        // Being bad with error handling here,
+        // but if you can't open it it's probably not a file.
+        let meta = match fs::metadata(filepath) {
+            Ok(x) => x,
+            Err(_) => return false
+        };
         
         match mimetype {
-            "all/all" => return Ok(true),
-            "all/allfiles" => return Ok(meta.is_file()),
-            "inode/directory" => return Ok(meta.is_dir()),
+            "all/all" => return true,
+            "all/allfiles" => return meta.is_file(),
+            "inode/directory" => return meta.is_dir(),
             "text/plain" => return is_text_plain_from_filepath(filepath),
-            "application/octet-stream" => return Ok(meta.is_file()),
+            "application/octet-stream" => return meta.is_file(),
             _ => {
                 println!("{}", mimetype);
                 panic!("This mime is not supported by the mod. (See can_check)")

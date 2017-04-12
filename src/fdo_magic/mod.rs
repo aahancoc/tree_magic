@@ -6,7 +6,7 @@ use MIME;
 
 // We can't have staticmime and sys_fdo_magic enabled
 // because we can't statically refer to a file on disk.
-#[cfg(all(feature="staticmime", any(feature="sys_fdo_magic", unix)))]
+#[cfg(all(feature="staticmime", all(feature="sys_fdo_magic", unix)))]
 const CONF_ERROR_CANNOT_USE_STATICMIME_WITH_SYS_FDO_MAGIC: u32 = ();
 
 #[derive(Debug, Clone)]
@@ -268,7 +268,7 @@ pub mod ruleset {
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
     #[cfg(feature="sys_fdo_magic")]
-    pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String>{
+    pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -500,16 +500,6 @@ pub mod check {
 
         false
     }
-    
-    pub fn can_check(mimetype: &str) -> bool {
-		// In case the user requests an alias
-        let mimetype = match super::ALIASES.get(mimetype) {
-			None => mimetype,
-			Some(x) => x
-		};
-		
-        super::ALLRULES.contains_key(mimetype)
-    }
 
     /// Test against all rules
     // This got really complicated really fast...
@@ -589,7 +579,7 @@ pub mod check {
 		return false;
     }
     
-    pub fn from_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error>{
+    pub fn from_filepath(filepath: &str, mimetype: &str) -> bool{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -597,7 +587,7 @@ pub mod check {
         // Get magic ruleset
         let magic_rules = match super::ALLRULES.get(mimetype) {
             Some(item) => item,
-            None => return Ok(false) // No rule for this mime
+            None => return false // No rule for this mime
         };
 
         // Get # of bytes to read
@@ -614,12 +604,18 @@ pub mod check {
             }
         }
         
-        let f = File::open(filepath)?;
+        let f = match File::open(filepath) {
+            Ok(x) => x,
+            Err(_) => return false
+        };
         let r = BufReader::new(f);
-        let mut b = Vec::<u8>::with_capacity(scanlen as usize);
-        r.take(scanlen).read_to_end(&mut b)?;
+        let mut b = Vec::<u8>::new();
+        match r.take(scanlen).read_to_end(&mut b) {
+            Ok(_) => {},
+            Err(_) => return false
+        }
         
-        Ok(from_u8(b.as_slice(), mimetype))
+        from_u8(b.as_slice(), mimetype)
     }
 
 }
