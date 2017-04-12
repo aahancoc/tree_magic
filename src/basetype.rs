@@ -14,10 +14,10 @@ pub mod init {
     extern crate std;
     use MIME;
 	
-	pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
+	/*pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
 		let _ = mimetype;
 		Vec::<MIME>::new()
-	}
+	}*/
     
     #[cfg(feature="staticmime")]
     pub fn get_supported() -> Vec<MIME> {
@@ -92,8 +92,8 @@ pub mod check {
         }
     }
 
-    pub fn can_check(mime: &str) -> bool {
-        return super::TYPES.contains(&mime);
+    pub fn can_check(mimetype: &str) -> bool {
+        return super::TYPES.contains(&mimetype);
     }
     
     pub fn from_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error>{

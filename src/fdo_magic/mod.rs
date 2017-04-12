@@ -365,12 +365,12 @@ pub mod init {
         Ok(aliaslist)
     }
 	
-	pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
+	/*pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
 		super::ALIASES.iter()
 			.filter(|x| x.0 == mimetype || x.1 == mimetype) // Get only where mime is listed
 			.map(|x| if x.0 == mimetype {x.1} else {x.0} ) // Get the thing that isn't the mime
 			.cloned().collect()
-	}
+	}*/
     
     /// Get list of supported MIME types
     #[cfg(not(feature="staticmime"))]
@@ -502,6 +502,12 @@ pub mod check {
     }
     
     pub fn can_check(mimetype: &str) -> bool {
+		// In case the user requests an alias
+        let mimetype = match super::ALIASES.get(mimetype) {
+			None => mimetype,
+			Some(x) => x
+		};
+		
         super::ALLRULES.contains_key(mimetype)
     }
 
@@ -513,6 +519,12 @@ pub mod check {
 		//use petgraph::dot::{Dot, Config};
 		
 		//println!("{}", mimetype);
+		
+		// Get mimetype in case user provides alias
+		let mimetype = match super::ALIASES.get(mimetype) {
+			None => mimetype,
+			Some(x) => x
+		};
     
         // Get magic ruleset
         let graph = match super::ALLRULES.get(mimetype) {
