@@ -60,8 +60,8 @@ pub mod test {
     extern crate std;
     
     /// If there are any null bytes, return False. Otherwise return True.
-    fn is_text_plain_from_u8(b: &[u8], len: usize) -> bool {
-        b.iter().take(len as usize).filter(|&x| *x == 0).count() == 0
+    fn is_text_plain_from_u8(b: &[u8]) -> bool {
+        b.iter().filter(|&x| *x == 0).count() == 0
     }
 
     fn is_text_plain_from_filepath(filepath: &str) -> Result<bool, std::io::Error> {
@@ -73,17 +73,17 @@ pub mod test {
         let f = File::open(filepath)?;
         let r = BufReader::new(f);
         let mut b = Vec::<u8>::new();
-        r.take(1024).read_to_end(&mut b)?;
+        r.take(512).read_to_end(&mut b)?;
         
-        Ok(is_text_plain_from_u8(b.as_slice(), b.len()))
+        Ok(is_text_plain_from_u8(b.as_slice()))
     }
     
-    pub fn from_u8(b: &[u8], len: usize, mimetype: &str) -> bool {
+    pub fn from_u8(b: &[u8], mimetype: &str) -> bool {
         if mimetype == "application/octet-stream" || mimetype == "all/allfiles" {
             // Both of these are the case if we have a bytestream at all
             return true;
         } if mimetype == "text/plain" {
-            return is_text_plain_from_u8(b, len);
+            return is_text_plain_from_u8(b);
         } else {
             // ...how did we get bytes for this?
             return false;

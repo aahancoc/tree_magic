@@ -173,16 +173,16 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
 /// the function will always return false.
-pub fn match_u8(mimetype: &str, bytes: &[u8], len: usize) -> bool
+pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
     let result: bool;
     
     // Handle base types
     if basetype::test::can_check(&mimetype){
-        result = basetype::test::from_u8(bytes, len, &mimetype);
+        result = basetype::test::from_u8(bytes, &mimetype);
     // Handle via magic
     } else if fdo_magic::test::can_check(&mimetype) {
-        result = fdo_magic::test::from_u8(bytes, len, &mimetype);
+        result = fdo_magic::test::from_u8(bytes, &mimetype);
     // Nothing can handle this. Somehow.
     } else {
         result = false;
@@ -203,7 +203,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8], len: usize) -> bool
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
-pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<MIME>
+pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
     
     // Walk the children
@@ -211,10 +211,10 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<M
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
 
-        match match_u8(mimetype, bytes, len) {
+        match match_u8(mimetype, bytes) {
             true => {
                 match from_u8_node(
-                    childnode, bytes, len
+                    childnode, bytes
                 ) {
                     Some(foundtype) => return Some(foundtype),
                     None => return Some(clonemime!(mimetype)),
@@ -232,13 +232,13 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8], len: usize) -> Option<M
 /// Returns mime as string wrapped in Some if a type matches, or
 /// None if no match is found. Because this starts from the type graph root,
 /// it is a bug if this returns None.
-pub fn from_u8(bytes: &[u8], len: usize) -> Option<MIME>
+pub fn from_u8(bytes: &[u8]) -> Option<MIME>
 {
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
         None => return None
     };
-    from_u8_node(node, bytes, len)
+    from_u8_node(node, bytes)
 }
 
 /// Check if the given filepath matches the given MIME type.
