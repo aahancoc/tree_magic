@@ -42,13 +42,6 @@ mod from_u8 {
         );
     }
     #[test]
-    fn image_x_lss16() {
-        assert_eq!(
-            tree_magic::from_u8(include_bytes!("image/x-lss16")),
-            Some(convmime!("image/x-lss16"))
-        );
-    }
-    #[test]
     fn image_x_portable_pixmap() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-portable-pixmap")),
@@ -67,14 +60,6 @@ mod from_u8 {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-pcx")),
             Some(convmime!("image/x-pcx"))
-        );
-    }
-    #[test]
-    // GNU file reports this as image/x-xpmi
-    fn image_x_xpixmap() {
-        assert_eq!(
-            tree_magic::from_u8(include_bytes!("image/x-xpixmap")),
-            Some(convmime!("image/x-xpixmap"))
         );
     }
     #[test]

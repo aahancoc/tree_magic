@@ -1,8 +1,5 @@
 //! Handles "base types" such as inode/* and text/plain
 
-#[cfg(feature="staticmime")] type MIME = &'static str;
-#[cfg(not(feature="staticmime"))] type MIME = String;
-
 const TYPES: [&'static str; 5] =
 [
     "all/all",

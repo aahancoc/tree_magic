@@ -1,8 +1,8 @@
 extern crate std;
 use std::collections::HashMap;
-
-#[cfg(feature="staticmime")] type MIME = &'static str;
-#[cfg(not(feature="staticmime"))] type MIME = String;
+extern crate petgraph;
+use petgraph::prelude::*;
+use MIME;
 
 // We can't have staticmime and sys_fdo_magic enabled
 // because we can't statically refer to a file on disk.
@@ -33,13 +33,13 @@ macro_rules! convmime {
 /// Sys magic always disabled on Windows.
 #[cfg(all(feature="sys_fdo_magic", unix))]
 lazy_static! {
-    static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
+    static ref ALLRULES: HashMap<MIME, DiGraph<MagicRule, u32>> = {
         ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
     };
 }
 #[cfg(not(all(feature="sys_fdo_magic", unix)))]
 lazy_static! {
-    static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
+    static ref ALLRULES: HashMap<MIME, DiGraph<MagicRule, u32>> = {
         ruleset::from_u8(include_bytes!("magic")).unwrap_or(HashMap::new())
     };
 }
@@ -47,8 +47,10 @@ lazy_static! {
 pub mod ruleset {
     extern crate nom;
     extern crate std;
+	extern crate petgraph;
     use std::str;
     use std::collections::HashMap;
+	use petgraph::prelude::*;
     //use std::mem;
     use MIME;
 
@@ -213,13 +215,44 @@ pub mod ruleset {
             (ret)
         )
     );
+	
+	fn gen_graph(magic_rules: Vec<super::MagicRule>) -> DiGraph<super::MagicRule, u32>
+	{
+		use petgraph::prelude::*;
+		// Whip up a graph real quick
+		let mut graph = DiGraph::<super::MagicRule, u32>::new();
+		let mut rulestack = Vec::<(super::MagicRule, NodeIndex)>::new();
+		
+		for x in magic_rules {
+			let xnode = graph.add_node(x.clone());
+			
+			loop {
+				let y = rulestack.pop();
+				match y {
+					None => {break;},
+					Some(rule) => {
+						if rule.0.indent_level < x.indent_level {
+							graph.add_edge(rule.1, xnode, 1);
+							rulestack.push( rule );
+							break;
+						}
+					}
+				};
+			}
+			rulestack.push( (x.clone(), xnode) );
+			
+		}
+		
+		let graph = graph;
+		graph
+	}
     
-    pub fn from_u8(b: &[u8]) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String> {
+    pub fn from_u8(b: &[u8]) -> Result<HashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
         let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;;
-        let mut res = HashMap::<MIME, Vec<super::MagicRule>>::new();
+        let mut res = HashMap::<MIME, DiGraph<super::MagicRule, u32>>::new();
         
         for x in tuplevec {
-            res.insert(x.0, x.1);
+            res.insert(x.0, gen_graph(x.1));
         }
         
         Ok(res)
@@ -397,31 +430,39 @@ pub mod test {
 				},
 				Some(mask) => {
 					//println!("\tMask == Some, len == {}", mask.len());
+					//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
 					let mut x: Vec<u8> = file.iter()
 						.skip(bound_min) // Skip to start of area
 						.take(bound_max - bound_min) // Take until end of area - region length
 						.map(|&x| x).collect(); // Convert to vector
-					let mut val: Vec<u8> = rule.val.iter().map(|&x| x).collect();
+					//let mut val: Vec<u8> = rule.val.iter().map(|&x| x).collect();
+					//println!("\t{:?} / {:?}", x, rule.val);
+					
 					
 					assert_eq!(x.len(), mask.len());
 					for i in 0..std::cmp::min(x.len(), mask.len()) {
-						x[i] = x[i] & mask[i];
-						val[i] = val[i] & mask[i];
+						x[i] &= mask[i];
+						//val[i] = val[i] & mask[i];
 					}
+					//println!("\t & {:?} => {:?}", mask, x);
 					
 					return rule.val.iter().eq(x.iter());
 				}
 			}
 		
 		} else {
-			//println!("Region != 1");
+			//println!("\tRegion == {}", rule.region_len);
+			//println!("\t{:?} / {:?}", x, rule.val);
+			//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
+					
 			// Define our testing slice
 			let ref x: Vec<u8> = file.iter().take(file.len()).map(|&x| x).collect();
 			let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
+			//let testarea: Vec<u8> = file.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
 			//println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
 			
 			// Search down until we find a hit
-			let mut y = Vec::<u8>::with_capacity(file.len());
+			let mut y = Vec::<u8>::with_capacity(testarea.len());
 			for x in testarea.windows(rule.val_len as usize) {
 
 				y.clear();
@@ -454,41 +495,56 @@ pub mod test {
     /// Test against all rules
     // This got really complicated really fast...
     pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
+		
+		use petgraph::prelude::*;
+		//use petgraph::dot::{Dot, Config};
+		
+		//println!("{}", mimetype);
     
         // Get magic ruleset
-        let magic_rules = match super::ALLRULES.get(mimetype) {
+        let graph = match super::ALLRULES.get(mimetype) {
             Some(item) => item,
             None => return false // No rule for this mime
         };
+		
+		//println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
     
-        // Test every given rule
-        for i in 0..magic_rules.len() {
-        
-            // If there aren't any rules ahead of us, just test the rule
-            if magic_rules.len() - i < 2 {
-                let ref x = magic_rules[i];
-                match from_u8_singlerule(&file, x.clone()) {
-                    true => return true,
-                    false => continue,
-                };
-            
-            // If there are rules ahead of us...
-            } else {
-                let x = magic_rules[i..magic_rules.len()].windows(2).next();
-                
-                // Make sure that assumption was true
-                let y = match x {
-                    Some(out) => out,
-                    None => {continue;},
-                };
-                
-                // Test the current rule
-				//println!("{}", mimetype);
-                match from_u8_singlerule(&file, y[0].clone()) {
+        // Test every given rule by walking graph
+		let externals = graph.externals(Incoming);
+		
+		for x in externals {
+			
+			let n = graph.neighbors_directed(x, Outgoing);
+			let ref rule = graph[x];
+			
+			// Check root
+			match from_u8_singlerule(&file, rule.clone()) {
+				true => {
+					//println!("\t\tMatch!");
+					// Check next indent level if needed
+					if n.clone().count() != 0 {
+						//println!("\t\tContinuing...");
+					// Next indent level is lower, so this must be it
+					} else {
+						//println!("\t\tOkay!");
+						return true;
+					}
+				},
+				// No match, so keep searching
+				false => {
+					continue;
+				}
+			};
+			
+			
+			for y in n {
+				let ref rule = graph[y];
+				
+				match from_u8_singlerule(&file, rule.clone()) {
                     true => {
 						//println!("\t\tMatch!");
                         // Check next indent level if needed
-                        if y[1].indent_level > y[0].indent_level {
+                        if graph.neighbors_directed(y, Outgoing).count() != 0 {
 							//println!("\t\tContinuing...");
                             continue;
                         // Next indent level is lower, so this must be it
@@ -498,12 +554,14 @@ pub mod test {
                         }
                     },
                     // No match, so keep searching
-                    false => continue,
+                    false => {
+						continue;
+					}
                 };
-            }
-        }
-        
-        false
+			}
+		}
+		
+		return false;
     }
     
     pub fn from_filepath(filepath: &str, mimetype: &str) -> Result<bool, std::io::Error>{
@@ -519,11 +577,12 @@ pub mod test {
 
         // Get # of bytes to read
         let mut scanlen:u64 = 0;
-        for x in magic_rules {
+        for x in magic_rules.raw_nodes() {
+			let ref y = x.weight;
             let tmplen:u64 = 
-                x.start_off as u64 +
-                x.val_len as u64 +
-                x.region_len as u64;
+                y.start_off as u64 +
+                y.val_len as u64 +
+                y.region_len as u64;
                 
             if tmplen > scanlen {
                 scanlen = tmplen;

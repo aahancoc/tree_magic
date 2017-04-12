@@ -20,10 +20,6 @@ mod match_u8 {
         assert!(tree_magic::match_u8("image/tiff", include_bytes!("image/tiff")));
     }
     #[test]
-    fn image_x_lss16() {
-        assert!(tree_magic::match_u8("image/x-lss16", include_bytes!("image/x-lss16")));
-    }
-    #[test]
     fn image_x_portable_pixmap() {
         assert!(tree_magic::match_u8("image/x-portable-pixmap", include_bytes!("image/x-portable-pixmap")));
     }
@@ -34,11 +30,6 @@ mod match_u8 {
     #[test]
     fn image_x_pcx() {
         assert!(tree_magic::match_u8("image/x-pcx", include_bytes!("image/x-pcx")));
-    }
-    #[test]
-    // GNU file reports this as image/x-xpmi
-    fn image_x_xpixmap() {
-        assert!(tree_magic::match_u8("image/x-xpixmap", include_bytes!("image/x-xpixmap")));
     }
     #[test]
     fn image_x_tga() {
