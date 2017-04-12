@@ -24,13 +24,15 @@ macro_rules! convmime {
     ($x:expr) => {$x}
 }
 
-#[cfg(feature="sys_fdo_magic")]
+/// Load magic file before anything else.
+/// Sys magic always disabled on Windows.
+#[cfg(all(feature="sys_fdo_magic", unix))]
 lazy_static! {
     static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
         ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
     };
 }
-#[cfg(not(feature="sys_fdo_magic"))]
+#[cfg(not(all(feature="sys_fdo_magic", unix)))]
 lazy_static! {
     static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
         ruleset::from_u8(include_bytes!("magic")).unwrap_or(HashMap::new())
@@ -220,7 +222,7 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    #[cfg(not(feature="staticmime"))]
+    #[cfg(not(feature="sys_fdo_magic"))]
     pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, Vec<super::MagicRule>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
@@ -276,8 +278,8 @@ pub mod init {
         let mut subclasses = Vec::<(MIME, MIME)>::new();
         
         for line in r.lines() {
-            let child = line.split_whitespace().nth(0).unwrap_or("");
-            let parent = line.split_whitespace().nth(1).unwrap_or("");
+            let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
+            let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
             
             subclasses.push( (parent, child) );
         }
@@ -295,8 +297,8 @@ pub mod init {
         for x in raliases.lines() {
             let line = x?;
         
-            let a = line.split_whitespace().nth(0).unwrap_or("").to_string();
-            let b = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            let a = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
+            let b = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
             aliaslist.insert(a,b);
         }
         
@@ -309,8 +311,8 @@ pub mod init {
         let mut aliaslist = HashMap::<MIME, MIME>::new();
         
         for line in raliases.lines() {
-            let a = line.split_whitespace().nth(0).unwrap_or("");
-            let b = line.split_whitespace().nth(1).unwrap_or("");
+            let a = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
+            let b = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
             aliaslist.insert(a,b);
         }
         
@@ -319,11 +321,11 @@ pub mod init {
     }
     
     /// Get list of supported MIME types
-    #[cfg(feature="sys_fdo_magic")]
+    #[cfg(not(feature="staticmime"))]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| x.clone()).collect()
     }
-    #[cfg(not(feature="sys_fdo_magic"))]
+    #[cfg(feature="staticmime")]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| *x).collect()
     }

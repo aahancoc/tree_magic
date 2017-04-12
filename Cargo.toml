@@ -21,11 +21,11 @@ clap = { version = "^2", optional = true }
 cli = ["clap", "tabwriter"]
 staticmime = []     # Use &'static str for output insead of String.
 sys_fdo_magic = []  # Use system magic file for fdo_magic checker
-default = ["cli", "sys_fdo_magic"]
+default = ["cli"]
 
 [lib]
-path = "src/lib.rs"
 crate-type = ["lib"]
+path = "src/lib.rs"
 
 [[bin]]
 required-features = ["cli"]
