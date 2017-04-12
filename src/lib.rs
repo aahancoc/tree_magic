@@ -178,11 +178,11 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
     let result: bool;
     
     // Handle base types
-    if basetype::test::can_check(&mimetype){
-        result = basetype::test::from_u8(bytes, &mimetype);
+    if basetype::check::can_check(&mimetype){
+        result = basetype::check::from_u8(bytes, &mimetype);
     // Handle via magic
-    } else if fdo_magic::test::can_check(&mimetype) {
-        result = fdo_magic::test::from_u8(bytes, &mimetype);
+    } else if fdo_magic::check::can_check(&mimetype) {
+        result = fdo_magic::check::from_u8(bytes, &mimetype);
     // Nothing can handle this. Somehow.
     } else {
         result = false;
@@ -250,11 +250,11 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> Result<bool, std::io::E
     let result: Result<bool, std::io::Error>;
     
     // Handle base types
-    if basetype::test::can_check(&mimetype){
-        result = basetype::test::from_filepath(filepath, &mimetype);
+    if basetype::check::can_check(&mimetype){
+        result = basetype::check::from_filepath(filepath, &mimetype);
     // Handle via magic
-    } else if fdo_magic::test::can_check(&mimetype) {
-        result = fdo_magic::test::from_filepath(filepath, &mimetype);
+    } else if fdo_magic::check::can_check(&mimetype) {
+        result = fdo_magic::check::from_filepath(filepath, &mimetype);
     // Nothing can handle this. Somehow.
     } else {
         result = Ok(false);

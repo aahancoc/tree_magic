@@ -13,6 +13,11 @@ pub mod init {
 
     extern crate std;
     use MIME;
+	
+	pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
+		let _ = mimetype;
+		Vec::<MIME>::new()
+	}
     
     #[cfg(feature="staticmime")]
     pub fn get_supported() -> Vec<MIME> {
@@ -52,7 +57,7 @@ pub mod init {
     
 }
 
-pub mod test {
+pub mod check {
 
     extern crate std;
     

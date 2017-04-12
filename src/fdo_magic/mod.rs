@@ -29,8 +29,15 @@ macro_rules! convmime {
     ($x:expr) => {$x}
 }
 
+/// Preload alias list
+lazy_static! {
+	static ref ALIASES: HashMap<MIME, MIME> = {
+		init::read_aliaslist().unwrap_or(HashMap::new())
+	};
+}
+
 /// Load magic file before anything else.
-/// Sys magic always disabled on Windows.
+/// ays_fdo_magic always disabled on Windows.
 #[cfg(all(feature="sys_fdo_magic", unix))]
 lazy_static! {
     static ref ALLRULES: HashMap<MIME, DiGraph<MagicRule, u32>> = {
@@ -325,9 +332,9 @@ pub mod init {
         Ok(subclasses)
     }
     
-    // Get filetype aliases
+    // Get filetype aliases (not really public but I need it to be
     #[cfg(feature="sys_fdo_magic")]
-    fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
+    pub fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
         let faliases = File::open("/usr/share/mime/aliases")?;
         let raliases = BufReader::new(faliases);
         let mut aliaslist = HashMap::<MIME, MIME>::new();
@@ -344,7 +351,7 @@ pub mod init {
         Ok(aliaslist)
     }
     #[cfg(not(feature="sys_fdo_magic"))]
-    fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
+    pub fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
         let raliases = include_str!("aliases");
         let mut aliaslist = HashMap::<MIME, MIME>::new();
         
@@ -357,6 +364,13 @@ pub mod init {
         let aliaslist = aliaslist;
         Ok(aliaslist)
     }
+	
+	pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
+		super::ALIASES.iter()
+			.filter(|x| x.0 == mimetype || x.1 == mimetype) // Get only where mime is listed
+			.map(|x| if x.0 == mimetype {x.1} else {x.0} ) // Get the thing that isn't the mime
+			.cloned().collect()
+	}
     
     /// Get list of supported MIME types
     #[cfg(not(feature="staticmime"))]
@@ -372,15 +386,14 @@ pub mod init {
     pub fn get_subclasses() -> Vec<(MIME, MIME)> {
     
         let mut subclasses = read_subclasses().unwrap_or(Vec::<(MIME, MIME)>::new());
-        let aliaslist = read_aliaslist().unwrap_or(HashMap::<MIME, MIME>::new());
         
         // If child or parent refers to an alias, change it to the real type
         for x in 0..subclasses.len(){
-            match aliaslist.get(&subclasses[x].0) {
+            match super::ALIASES.get(&subclasses[x].0) {
                 Some(alias) => {subclasses[x].0 = alias.clone();}
                 None => {}
             }
-            match aliaslist.get(&subclasses[x].1) {
+            match super::ALIASES.get(&subclasses[x].1) {
                 Some(alias) => {subclasses[x].1 = alias.clone();}
                 None => {}
             }
@@ -391,7 +404,7 @@ pub mod init {
 }
 
 // Functions to check if a file matches a magic entry
-pub mod test {
+pub mod check {
 
     extern crate std;
     
