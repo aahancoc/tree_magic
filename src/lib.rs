@@ -241,48 +241,6 @@ pub fn from_u8(bytes: &[u8], len: usize) -> Option<MIME>
     from_u8_node(node, bytes, len)
 }
 
-/// Checks if the given vector of bytes matches the given MIME type.
-///
-/// Returns true or false if it matches or not. If the given mime type is not known,
-/// the function will always return false.
-pub fn match_vec_u8(bytes: Vec<u8>, mimetype: &str) -> bool
-{
-    let len = bytes.len();
-    match_u8(mimetype, bytes.as_slice(), len)
-}
-
-
-/// Gets the type of a file from a vector of bytes, starting at a certain node
-/// in the type graph.
-///
-/// Returns mime as string wrapped in Some if a type matches, or
-/// None if no match is found.
-/// Retreive the node from the `TYPE.hash` HashMap, using the MIME as the key.
-///
-/// ## Panics
-/// Will panic if the given node is not found in the graph.
-/// As the graph is immutable, this should not happen if the node index comes from
-/// TYPE.hash.
-pub fn from_vec_u8_node(parentnode: NodeIndex, bytes: Vec<u8>) -> Option<MIME>
-{
-    let len = bytes.len();
-    from_u8_node(parentnode, bytes.as_slice(), len)
-}
-
-/// Gets the type of a file from a vector of bytes.
-///
-/// Returns mime as string wrapped in Some if a type matches, or
-/// None if no match is found. Because this starts from the type graph root,
-/// it is a bug if this returns None.
-pub fn from_vec_u8(bytes: Vec<u8>) -> Option<MIME> {
-
-    let node = match TYPE.graph.externals(Incoming).next() {
-        Some(foundnode) => foundnode,
-        None => return None
-    };
-    from_vec_u8_node(node, bytes)
-}
-
 /// Check if the given filepath matches the given MIME type.
 ///
 /// Returns true or false if it matches or not, or an Error if the file could

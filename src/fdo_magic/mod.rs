@@ -24,17 +24,16 @@ macro_rules! convmime {
     ($x:expr) => {$x}
 }
 
-#[cfg(not(feature="staticmime"))]
+#[cfg(feature="sys_fdo_magic")]
 lazy_static! {
     static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
         ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
     };
 }
-#[cfg(feature="staticmime")]
+#[cfg(not(feature="sys_fdo_magic"))]
 lazy_static! {
     static ref ALLRULES: HashMap<MIME, Vec<MagicRule>> = {
-        const magic: &'static [u8] = include_bytes!("magic");
-        ruleset::from_u8(magic).unwrap_or(HashMap::new())
+        ruleset::from_u8(include_bytes!("magic")).unwrap_or(HashMap::new())
     };
 }
 
@@ -101,6 +100,18 @@ pub mod ruleset {
             })
         )
     );
+    
+    #[test]
+    // Ensures the transmute used in mime for feature="staticmime"
+    // doesn't blow up.
+    fn str_transmute_sanity() {
+        unsafe {
+            const A: &'static [u8] = b"Hello world!";
+            const B: &'static str = "Hello world!";
+            let c: &'static str = std::mem::transmute(A);
+            assert!(B == c); // 256
+        }
+    }
 
     // Indent levels sub-parser for magic_rules
     // Default value 0
@@ -174,30 +185,14 @@ pub mod ruleset {
         
     );
 
-    // Singular magic entry
-    #[cfg(not(feature="staticmime"))]
+    /// Singular magic entry
     named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
         do_parse!(
             _mime: do_parse!(
                 ret: mime >>
-                (ret.to_string())
+                (convmime!(ret))
             ) >>
-            
             _rules: many0!(magic_rules) >>
-        
-            (_mime, _rules)
-        )
-    );
-    #[cfg(feature="staticmime")]
-    named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
-        do_parse!(
-            _mime: do_parse!(
-                ret: mime >>
-                (ret)
-            ) >>
-            
-            _rules: many0!(magic_rules) >>
-        
             (_mime, _rules)
         )
     );
@@ -249,14 +244,14 @@ pub mod ruleset {
 pub mod init {
 
     extern crate std;
-    use std::io::prelude::*;
-    use std::io::BufReader;
-    use std::fs::File;
     use std::collections::HashMap;
     use MIME;
+    #[cfg(feature="sys_fdo_magic")] use std::io::prelude::*;
+    #[cfg(feature="sys_fdo_magic")] use std::io::BufReader;
+    #[cfg(feature="sys_fdo_magic")] use std::fs::File;
 
     /// Read all subclass lines from file
-    #[cfg(not(feature="staticmime"))]
+    #[cfg(feature="sys_fdo_magic")]
     fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
     
         let f = File::open("/usr/share/mime/subclasses")?;
@@ -269,12 +264,12 @@ pub mod init {
             let child = line.split_whitespace().nth(0).unwrap_or("").to_string();
             let parent = line.split_whitespace().nth(1).unwrap_or("").to_string();
             
-            subclasses.push( (parent_raw, child_raw) );
+            subclasses.push( (parent, child) );
         }
         
         Ok(subclasses)
     }
-    #[cfg(feature="staticmime")]
+    #[cfg(not(feature="sys_fdo_magic"))]
     fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
     
         let r = include_str!("subclasses");
@@ -291,7 +286,7 @@ pub mod init {
     }
     
     // Get filetype aliases
-    #[cfg(not(feature="staticmime"))]
+    #[cfg(feature="sys_fdo_magic")]
     fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
         let faliases = File::open("/usr/share/mime/aliases")?;
         let raliases = BufReader::new(faliases);
@@ -308,7 +303,7 @@ pub mod init {
         let aliaslist = aliaslist;
         Ok(aliaslist)
     }
-    #[cfg(feature="staticmime")]
+    #[cfg(not(feature="sys_fdo_magic"))]
     fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
         let raliases = include_str!("aliases");
         let mut aliaslist = HashMap::<MIME, MIME>::new();
@@ -324,11 +319,11 @@ pub mod init {
     }
     
     /// Get list of supported MIME types
-    #[cfg(not(feature="staticmime"))]
+    #[cfg(feature="sys_fdo_magic")]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| x.clone()).collect()
     }
-    #[cfg(feature="staticmime")]
+    #[cfg(not(feature="sys_fdo_magic"))]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| *x).collect()
     }
@@ -359,7 +354,6 @@ pub mod init {
 pub mod test {
 
     extern crate std;
-    use MIME;
     
     fn from_u8_singlerule(file: &[u8], len: usize, rule: super::MagicRule) -> bool {
         
@@ -416,7 +410,7 @@ pub mod test {
     }
     
     pub fn can_check(mimetype: &str) -> bool {
-        super::ALLRULES.contains_key(convmime!(mimetype))
+        super::ALLRULES.contains_key(mimetype)
     }
 
     /// Test against all rules

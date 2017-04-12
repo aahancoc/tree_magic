@@ -58,7 +58,6 @@ pub mod init {
 pub mod test {
 
     extern crate std;
-    use MIME;
     
     /// If there are any null bytes, return False. Otherwise return True.
     fn is_text_plain_from_u8(b: &[u8], len: usize) -> bool {

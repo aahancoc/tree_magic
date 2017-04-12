@@ -19,8 +19,9 @@ clap = { version = "^2", optional = true }
 
 [features]
 cli = ["clap", "tabwriter"]
-staticmime = []
-default = ["cli", "staticmime"]
+staticmime = []     # Use &'static str for output insead of String.
+sys_fdo_magic = []  # Use system magic file for fdo_magic checker
+default = ["cli", "sys_fdo_magic"]
 
 [lib]
 path = "src/lib.rs"
