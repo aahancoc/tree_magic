@@ -11,6 +11,9 @@ use std::collections::HashSet;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
 //use petgraph::dot::{Dot, Config};
+use std::io::prelude::*;
+use std::io::BufReader;
+use std::fs::File;
 
 mod fdo_magic;
 mod basetype;
@@ -39,14 +42,14 @@ struct CheckerStruct {
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
         CheckerStruct{
-            from_u8: fdo_magic::check::from_u8,
-            from_filepath: fdo_magic::check::from_filepath,
-            get_supported: fdo_magic::init::get_supported
-        }, 
-        CheckerStruct{
             from_u8: basetype::check::from_u8,
             from_filepath: basetype::check::from_filepath,
             get_supported: basetype::init::get_supported
+        },
+        CheckerStruct{
+            from_u8: fdo_magic::check::from_u8,
+            from_filepath: fdo_magic::check::from_filepath,
+            get_supported: fdo_magic::init::get_supported
         }
     ]};
 }
@@ -326,7 +329,29 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> bool
 /// TYPE.hash.
 pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME> 
 {
-    typegraph_walker(parentnode, filepath, match_filepath)
+    // We're actually just going to thunk this down to a u8
+    // unless we're checking via basetype for speed reasons.
+    
+    // Ensure it's at least a application/octet-stream
+    if !match_filepath("application/octet-stream", filepath){
+        // Check the other base types
+        return typegraph_walker(parentnode, filepath, match_filepath);
+    }
+    
+    // Load the first 4K of file and parse as u8
+    // for batch processing like this
+    let f = match File::open(filepath) {
+        Ok(x) => x,
+        Err(_) => return None // How?
+    };
+    let r = BufReader::new(f);
+    let mut b = Vec::<u8>::new();
+    match r.take(4096).read_to_end(&mut b) {
+        Ok(_) => {},
+        Err(_) => return None // Also how?
+    }
+    
+    from_u8_node(parentnode, b.as_slice())
 }
 
 /// Gets the type of a file from a filepath.

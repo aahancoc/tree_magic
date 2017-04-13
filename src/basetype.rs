@@ -105,15 +105,14 @@ pub mod check {
         // but if you can't open it it's probably not a file.
         let meta = match fs::metadata(filepath) {
             Ok(x) => x,
-            Err(_) => return false
+            Err(_) => {return false;}
         };
         
         match mimetype {
             "all/all" => return true,
-            "all/allfiles" => return meta.is_file(),
+            "all/allfiles" | "application/octet-stream" => return meta.is_file(),
             "inode/directory" => return meta.is_dir(),
             "text/plain" => return is_text_plain_from_filepath(filepath),
-            "application/octet-stream" => return meta.is_file(),
             _ => {
                 println!("{}", mimetype);
                 panic!("This mime is not supported by the mod. (See can_check)")
