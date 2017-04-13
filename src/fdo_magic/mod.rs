@@ -1,7 +1,8 @@
 extern crate std;
-use std::collections::HashMap;
 extern crate petgraph;
+extern crate fnv;
 use petgraph::prelude::*;
+use fnv::FnvHashMap;
 use MIME;
 
 // We can't have staticmime and sys_fdo_magic enabled
@@ -31,8 +32,8 @@ macro_rules! convmime {
 
 /// Preload alias list
 lazy_static! {
-	static ref ALIASES: HashMap<MIME, MIME> = {
-		init::read_aliaslist().unwrap_or(HashMap::new())
+	static ref ALIASES: FnvHashMap<MIME, MIME> = {
+		init::read_aliaslist().unwrap_or(FnvHashMap::default())
 	};
 }
 
@@ -40,14 +41,14 @@ lazy_static! {
 /// ays_fdo_magic always disabled on Windows.
 #[cfg(all(feature="sys_fdo_magic", unix))]
 lazy_static! {
-    static ref ALLRULES: HashMap<MIME, DiGraph<MagicRule, u32>> = {
-        ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(HashMap::new())
+    static ref ALLRULES: FnvHashMap<MIME, DiGraph<MagicRule, u32>> = {
+        ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(FnvHashMap::default())
     };
 }
 #[cfg(not(all(feature="sys_fdo_magic", unix)))]
 lazy_static! {
-    static ref ALLRULES: HashMap<MIME, DiGraph<MagicRule, u32>> = {
-        ruleset::from_u8(include_bytes!("magic")).unwrap_or(HashMap::new())
+    static ref ALLRULES: FnvHashMap<MIME, DiGraph<MagicRule, u32>> = {
+        ruleset::from_u8(include_bytes!("magic")).unwrap_or(FnvHashMap::default())
     };
 }
 
@@ -55,10 +56,10 @@ pub mod ruleset {
     extern crate nom;
     extern crate std;
 	extern crate petgraph;
+	extern crate fnv;
     use std::str;
-    use std::collections::HashMap;
 	use petgraph::prelude::*;
-    //use std::mem;
+	use fnv::FnvHashMap;
     use MIME;
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
@@ -254,9 +255,9 @@ pub mod ruleset {
 		graph
 	}
     
-    pub fn from_u8(b: &[u8]) -> Result<HashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
+    pub fn from_u8(b: &[u8]) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
         let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;;
-        let mut res = HashMap::<MIME, DiGraph<super::MagicRule, u32>>::new();
+        let mut res = FnvHashMap::<MIME, DiGraph<super::MagicRule, u32>>::default();
         
         for x in tuplevec {
             res.insert(x.0, gen_graph(x.1));
@@ -268,7 +269,7 @@ pub mod ruleset {
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
     #[cfg(feature="sys_fdo_magic")]
-    pub fn from_filepath(filepath: &str) -> Result<HashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
+    pub fn from_filepath(filepath: &str) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -291,7 +292,8 @@ pub mod ruleset {
 pub mod init {
 
     extern crate std;
-    use std::collections::HashMap;
+    extern crate fnv;
+    use fnv::FnvHashMap;
     use MIME;
     #[cfg(feature="sys_fdo_magic")] use std::io::prelude::*;
     #[cfg(feature="sys_fdo_magic")] use std::io::BufReader;
@@ -334,10 +336,10 @@ pub mod init {
     
     // Get filetype aliases (not really public but I need it to be
     #[cfg(feature="sys_fdo_magic")]
-    pub fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
+    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
         let faliases = File::open("/usr/share/mime/aliases")?;
         let raliases = BufReader::new(faliases);
-        let mut aliaslist = HashMap::<MIME, MIME>::new();
+        let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
         
         for x in raliases.lines() {
             let line = x?;
@@ -351,9 +353,9 @@ pub mod init {
         Ok(aliaslist)
     }
     #[cfg(not(feature="sys_fdo_magic"))]
-    pub fn read_aliaslist() -> Result<HashMap<MIME, MIME>, std::io::Error> {
+    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
         let raliases = include_str!("aliases");
-        let mut aliaslist = HashMap::<MIME, MIME>::new();
+        let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
         
         for line in raliases.lines() {
             let a = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
