@@ -1,6 +1,6 @@
 # tree_magic
 
-tree_magic is a Rust library that determines the file type a given file or byte stream. 
+tree_magic is a Rust library that determines the MIME type a given file or byte stream. 
 
 Read the documentation at https://docs.rs/tree_magic/
 
@@ -18,9 +18,11 @@ However, it should be noted that the FreeDesktop.org magic files cover less file
 
 ## Compatibility
 
-Right now only Linux systems (or anything else that supports FreeDesktop.org standards) are fully supported. Other systems will only report "inode/directory", "text/plain", or "application/octet-stream". This is expected to be improved in the future.
+This has been tested using Rust Stable and Nightly on Windows 7 and OpenSUSE Tumbleweed Linux.
 
-All mime information and relation information is loaded from the Shared MIME-info Database as described at https://specifications.freedesktop.org/shared-mime-info-spec/shared-mime-info-spec-latest.html.
+All mime information and relation information is loaded from the Shared MIME-info Database as described at https://specifications.freedesktop.org/shared-mime-info-spec/shared-mime-info-spec-latest.html. If you beleive that this is not present on your system, turn off the `sys_fdo_magic` feature flag.
+
+This provides the most common file types, but it's still missing some of the more obscure types that libmagic would support. Expect this to improve.
 
 ### Architecture
 
@@ -59,8 +61,6 @@ To add additional checker types, add a new module exporting:
 - `init::get_supported() -> Vec<(String)>`
 
 - `init::get_subclasses() -> Vec<String, String)>`
-
-- `test::can_check(&str) -> bool`
 
 - `test::from_u8(&[u8], &str) -> bool`
 

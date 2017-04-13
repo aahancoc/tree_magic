@@ -35,21 +35,24 @@ const TYPEORDER: [&'static str; 6] =
 struct CheckerStruct {
     from_u8: fn(&[u8], &str) -> bool,
     from_filepath: fn(&str, &str) -> bool,
-    get_supported: fn() -> Vec<MIME>
+    get_supported: fn() -> Vec<MIME>,
+    get_subclasses: fn() -> Vec<(MIME, MIME)>
 }
 
 /// List of checker functions
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
         CheckerStruct{
-            from_u8: basetype::check::from_u8,
-            from_filepath: basetype::check::from_filepath,
-            get_supported: basetype::init::get_supported
-        },
-        CheckerStruct{
             from_u8: fdo_magic::check::from_u8,
             from_filepath: fdo_magic::check::from_filepath,
-            get_supported: fdo_magic::init::get_supported
+            get_supported: fdo_magic::init::get_supported,
+            get_subclasses: fdo_magic::init::get_subclasses
+        },
+        CheckerStruct{
+            from_u8: basetype::check::from_u8,
+            from_filepath: basetype::check::from_filepath,
+            get_supported: basetype::init::get_supported,
+            get_subclasses: basetype::init::get_subclasses
         }
     ]};
 }
@@ -117,10 +120,13 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     let mut graph = DiGraph::<MIME, u32>::new();
     let mut added_mimes = FnvHashMap::<MIME, NodeIndex>::default();
     
-    // Get list of MIME types
-    let mut mimelist = fdo_magic::init::get_supported();
-    mimelist.extend(basetype::init::get_supported());
-    
+    // Get list of MIME types and MIME relations
+    let mut mimelist = Vec::<MIME>::new();
+    let mut edgelist_raw = Vec::<(MIME, MIME)>::new();
+    for i in 0..CHECKERS.len() {
+        mimelist.extend((CHECKERS[i].get_supported)());
+        edgelist_raw.extend((CHECKERS[i].get_subclasses)());
+    }
     mimelist.sort();
     mimelist.dedup();
     let mimelist = mimelist;
@@ -130,14 +136,9 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
         let node = graph.add_node(clonemime!(mimetype));
         added_mimes.insert(clonemime!(mimetype), node);
     }
-    
-    // Get list of edges from each mod's init submod
-    // TODO: Can we iterate over a vector of function/module pointers?
-    let mut edge_list_raw = basetype::init::get_subclasses();
-    edge_list_raw.extend(fdo_magic::init::get_subclasses());
         
-    let mut edge_list = HashSet::<(NodeIndex, NodeIndex)>::with_capacity(edge_list_raw.len());
-    for x in edge_list_raw {
+    let mut edge_list = HashSet::<(NodeIndex, NodeIndex)>::with_capacity(edgelist_raw.len());
+    for x in edgelist_raw {
         let child_raw = x.0;
         let parent_raw = x.1;
         
