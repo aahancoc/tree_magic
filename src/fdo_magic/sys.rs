@@ -15,7 +15,7 @@ use super::MagicRule;
 /// Preload alias list
 lazy_static! {
 	static ref ALIASES: FnvHashMap<MIME, MIME> = {
-		init::read_aliaslist().unwrap_or(FnvHashMap::default())
+		init::get_aliaslist()
 	};
 }
 
@@ -53,7 +53,7 @@ pub mod init {
         let mut subclasses = Vec::<(MIME, MIME)>::new();
         
         for x in r.lines() {
-            let line = x;
+            let line = x?;
             
             let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
             let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
@@ -64,9 +64,9 @@ pub mod init {
         Ok(subclasses)
     }
     
-    // Get filetype aliases (not really public but I need it to be)
-    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
-        let faliases = File::open("/usr/share/mime/aliases")?;
+    // Get filetype aliases
+    fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
+        let faliases = File::open("/usr/share/mime/aFnvHashMap::default()liases")?;
         let raliases = BufReader::new(faliases);
         let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
         
@@ -80,6 +80,10 @@ pub mod init {
         
         let aliaslist = aliaslist;
         Ok(aliaslist)
+    }
+    
+    pub fn get_aliaslist() -> FnvHashMap<MIME, MIME> {
+        read_aliaslist().unwrap_or(FnvHashMap::default())
     }
     
     /// Get list of parent -> child subclass links

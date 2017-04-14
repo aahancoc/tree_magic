@@ -52,7 +52,7 @@ mod from_u8 {
     fn image_x_pcx() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-pcx")),
-            Some(convmime!("image/x-pcx"))
+            Some(convmime!("image/vnd.zbrush.pcx"))
         );
     }
     #[test]

@@ -12,12 +12,9 @@ const TYPES: [&'static str; 5] =
 pub mod init {
 
     extern crate std;
+    extern crate fnv;
+    use fnv::FnvHashMap;
     use MIME;
-	
-	/*pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
-		let _ = mimetype;
-		Vec::<MIME>::new()
-	}*/
     
     #[cfg(feature="staticmime")]
     pub fn get_supported() -> Vec<MIME> {
@@ -53,6 +50,10 @@ pub mod init {
         res.push( ("application/octet-stream".to_string(), "text/plain".to_string()) );
         
         res
+    }
+    
+    pub fn get_aliaslist() -> FnvHashMap<MIME, MIME> {
+        FnvHashMap::default()
     }
     
 }

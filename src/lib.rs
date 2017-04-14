@@ -36,30 +36,34 @@ struct CheckerStruct {
     from_u8: fn(&[u8], &str) -> bool,
     from_filepath: fn(&str, &str) -> bool,
     get_supported: fn() -> Vec<MIME>,
-    get_subclasses: fn() -> Vec<(MIME, MIME)>
+    get_subclasses: fn() -> Vec<(MIME, MIME)>,
+    get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
 }
 
 /// List of checker functions
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
-        #[cfg(not(feature="staticmime"))]
+        #[cfg(not(feature="staticmime"))] // Disable sys checker when using staticmime
         CheckerStruct{
             from_u8: fdo_magic::sys::check::from_u8,
             from_filepath: fdo_magic::sys::check::from_filepath,
             get_supported: fdo_magic::sys::init::get_supported,
-            get_subclasses: fdo_magic::sys::init::get_subclasses
+            get_subclasses: fdo_magic::sys::init::get_subclasses,
+            get_aliaslist: fdo_magic::sys::init::get_aliaslist
         },
         CheckerStruct{
             from_u8: fdo_magic::builtin::check::from_u8,
             from_filepath: fdo_magic::builtin::check::from_filepath,
             get_supported: fdo_magic::builtin::init::get_supported,
-            get_subclasses: fdo_magic::builtin::init::get_subclasses
+            get_subclasses: fdo_magic::builtin::init::get_subclasses,
+            get_aliaslist: fdo_magic::builtin::init::get_aliaslist
         },
         CheckerStruct{
             from_u8: basetype::check::from_u8,
             from_filepath: basetype::check::from_filepath,
             get_supported: basetype::init::get_supported,
-            get_subclasses: basetype::init::get_subclasses
+            get_subclasses: basetype::init::get_subclasses,
+            get_aliaslist: basetype::init::get_aliaslist
         }
     ]};
 }
@@ -69,10 +73,19 @@ lazy_static! {
     static ref CHECKER_SUPPORT: FnvHashMap<MIME, usize> = {
         let mut out = FnvHashMap::<MIME, usize>::default();
         for i in 0..CHECKERS.len() {
-            let supported_types = (CHECKERS[i].get_supported)();
-            for j in supported_types {
+            for j in (CHECKERS[i].get_supported)() {
                 out.insert(j, i);
             }
+        }
+        out
+    };
+}
+
+lazy_static! {
+    static ref ALIASES:  FnvHashMap<MIME, MIME> = {
+        let mut out = FnvHashMap::<MIME, MIME>::default();
+        for i in 0..CHECKERS.len() {
+            out.extend((CHECKERS[i].get_aliaslist)());
         }
         out
     };
@@ -270,15 +283,25 @@ fn typegraph_walker<T: Clone>(
     None
 }
 
+/// Transforms an alias into it's real type
+fn get_alias(mimetype: MIME) -> MIME {
+    match ALIASES.get(&mimetype) {
+        Some(x) => convmime!(x),
+        None => mimetype
+    }
+}
+
 /// Checks if the given bytestream matches the given MIME type.
 ///
 /// Returns true or false if it matches or not. If the given mime type is not known,
 /// the function will always return false.
 pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
-    match CHECKER_SUPPORT.get(mimetype) {
-        None => false,
-        Some(x) => (CHECKERS[*x].from_u8)(bytes, &mimetype)
+    // Transform alias if needed
+    let x = get_alias(convmime!(mimetype));
+    match CHECKER_SUPPORT.get(x.as_str()) {
+        None => {panic!("{} not supported", x);},
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, &x.as_str())
     }
 }
 
@@ -319,9 +342,11 @@ pub fn from_u8(bytes: &[u8]) -> Option<MIME>
 /// not be read. If the given mime type is not known, it will always return false.
 pub fn match_filepath(mimetype: &str, filepath: &str) -> bool 
 {
-    match CHECKER_SUPPORT.get(mimetype) {
+    // Transform alias if needed
+    let x = get_alias(convmime!(mimetype));
+    match CHECKER_SUPPORT.get(x.as_str()) {
         None => false,
-        Some(x) => (CHECKERS[*x].from_filepath)(filepath, &mimetype)
+        Some(y) => (CHECKERS[*y].from_filepath)(filepath, &x.as_str())
     }
 }
 

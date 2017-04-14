@@ -11,7 +11,7 @@ use super::MagicRule;
 /// Preload alias list
 lazy_static! {
 	static ref ALIASES: FnvHashMap<MIME, MIME> = {
-		init::read_aliaslist().unwrap_or(FnvHashMap::default())
+		init::get_aliaslist()
 	};
 }
 
@@ -53,8 +53,8 @@ pub mod init {
         Ok(subclasses)
     }
 
-    // Get filetype aliases (not really public but I need it to be)
-    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
+    // Get filetype aliases
+    fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
         let raliases = include_str!("aliases");
         let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
         
@@ -66,6 +66,10 @@ pub mod init {
         
         let aliaslist = aliaslist;
         Ok(aliaslist)
+    }
+    
+    pub fn get_aliaslist() -> FnvHashMap<MIME, MIME> {
+        read_aliaslist().unwrap_or(FnvHashMap::default())
     }
     
     /// Get list of supported MIME types
@@ -109,11 +113,11 @@ pub mod check {
     /// Test against all rules
     pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
 		
-		// Get mimetype in case user provides alias
+		/*// Get mimetype in case user provides alias
 		let mimetype = match super::ALIASES.get(mimetype) {
 			None => mimetype,
 			Some(x) => x
-		};
+		};*/
     
         // Get magic ruleset
         let graph = match super::ALLRULES.get(mimetype) {

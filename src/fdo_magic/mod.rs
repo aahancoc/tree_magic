@@ -228,7 +228,7 @@ pub mod ruleset {
 					}
 				};
 			}
-			rulestack.push( (x.clone(), xnode) );
+			rulestack.push( (x, xnode) );
 			
 		}
 		
@@ -316,14 +316,14 @@ pub mod check {
 						.skip(bound_min) // Skip to start of area
 						.take(bound_max - bound_min) // Take until end of area - region length
 						.map(|&x| x).collect(); // Convert to vector
-					//let mut val: Vec<u8> = rule.val.iter().map(|&x| x).collect();
+					let mut val: Vec<u8> = rule.val.iter().map(|&x| x).collect();
 					//println!("\t{:?} / {:?}", x, rule.val);
 					
 					
 					assert_eq!(x.len(), mask.len());
 					for i in 0..std::cmp::min(x.len(), mask.len()) {
 						x[i] &= mask[i];
-						//val[i] = val[i] & mask[i];
+						val[i] = val[i] & mask[i];
 					}
 					//println!("\t & {:?} => {:?}", mask, x);
 					
@@ -333,13 +333,11 @@ pub mod check {
 		
 		} else {
 			//println!("\tRegion == {}", rule.region_len);
-			//println!("\t{:?} / {:?}", x, rule.val);
 			//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
 					
 			// Define our testing slice
 			let ref x: Vec<u8> = file.iter().take(file.len()).map(|&x| x).collect();
 			let testarea: Vec<u8> = x.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
-			//let testarea: Vec<u8> = file.iter().skip(bound_min).take(bound_max - bound_min).map(|&x| x).collect();
 			//println!("{:?}, {:?}, {:?}\n", file, testarea, rule.val);
 			
 			// Search down until we find a hit
