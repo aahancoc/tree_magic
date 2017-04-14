@@ -405,3 +405,14 @@ pub fn from_filepath(filepath: &str) -> Option<MIME> {
     
     from_filepath_node(node, filepath)
 }
+
+/// Determines if a MIME is an alias of another MIME
+///
+/// If this returns true, that means the two MIME types are equivalent.
+/// If this returns false, either one of the MIME types are missing, or they are different.
+pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
+    let x = get_alias(clonemime!(mime1));
+    let y = get_alias(clonemime!(mime2));
+    
+    return x == mime2 || y == mime1;
+}
