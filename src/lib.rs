@@ -116,6 +116,7 @@ lazy_static! {
     };
 }
 
+/// Convert a &str to a MIME
 #[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
     ($x:expr) => {$x.to_string()}
@@ -125,6 +126,17 @@ macro_rules! convmime {
     ($x:expr) => {$x}
 }
 
+/// Convert a MIME to a &str
+#[cfg(not(feature="staticmime"))]
+macro_rules! unconvmime {
+    ($x:expr) => {$x.as_str()}
+}
+#[cfg(feature="staticmime")]
+macro_rules! unconvmime {
+    ($x:expr) => {$x}
+}
+
+/// Clone a MIME
 #[cfg(not(feature="staticmime"))]
 macro_rules! clonemime {
     ($x:expr) => {$x.clone()}
@@ -286,12 +298,21 @@ fn typegraph_walker<T: Clone>(
 }
 
 /// Transforms an alias into it's real type
-fn get_alias(mimetype: MIME) -> MIME {
-    match ALIASES.get(&mimetype) {
-        Some(x) => convmime!(x),
+#[cfg(feature="staticmime")]
+fn get_alias(mimetype: &str) -> &str {
+    match ALIASES.get(mimetype) {
+        Some(x) => x,
         None => mimetype
     }
 }
+#[cfg(not(feature="staticmime"))]
+fn get_alias(mimetype: &String) -> &String {
+    match ALIASES.get(mimetype) {
+        Some(x) => x,
+        None => mimetype
+    }
+}
+
 
 /// Checks if the given bytestream matches the given MIME type.
 ///
@@ -300,10 +321,11 @@ fn get_alias(mimetype: MIME) -> MIME {
 pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
     // Transform alias if needed
-    let x = get_alias(convmime!(mimetype));
-    match CHECKER_SUPPORT.get(x.as_str()) {
+    let oldmime = convmime!(mimetype);
+    let x = get_alias(&oldmime);
+    match CHECKER_SUPPORT.get(unconvmime!(x)) {
         None => {panic!("{} not supported", x);},
-        Some(y) => (CHECKERS[*y].from_u8)(bytes, &x.as_str())
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, unconvmime!(x))
     }
 }
 
@@ -345,10 +367,11 @@ pub fn from_u8(bytes: &[u8]) -> Option<MIME>
 pub fn match_filepath(mimetype: &str, filepath: &str) -> bool 
 {
     // Transform alias if needed
-    let x = get_alias(convmime!(mimetype));
-    match CHECKER_SUPPORT.get(x.as_str()) {
+    let oldmime = convmime!(mimetype);
+    let x = get_alias(&oldmime);
+    match CHECKER_SUPPORT.get(unconvmime!(x)) {
         None => false,
-        Some(y) => (CHECKERS[*y].from_filepath)(filepath, &x.as_str())
+        Some(y) => (CHECKERS[*y].from_filepath)(filepath, unconvmime!(x))
     }
 }
 
@@ -410,9 +433,13 @@ pub fn from_filepath(filepath: &str) -> Option<MIME> {
 ///
 /// If this returns true, that means the two MIME types are equivalent.
 /// If this returns false, either one of the MIME types are missing, or they are different.
+
 pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
-    let x = get_alias(clonemime!(mime1));
-    let y = get_alias(clonemime!(mime2));
+    let x = get_alias(&mime1);
+    let y = get_alias(&mime2);
     
+    #[cfg(feature="staticmime")]
     return x == mime2 || y == mime1;
+    #[cfg(not(feature="staticmime"))]
+    return *x == mime2 || *y == mime1;
 }
