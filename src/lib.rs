@@ -7,9 +7,9 @@
 extern crate petgraph;
 extern crate fnv;
 
-use std::collections::HashSet;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
+use fnv::FnvHashSet;
 //use petgraph::dot::{Dot, Config};
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -157,7 +157,9 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
         added_mimes.insert(clonemime!(mimetype), node);
     }
         
-    let mut edge_list = HashSet::<(NodeIndex, NodeIndex)>::with_capacity(edgelist_raw.len());
+    let mut edge_list = FnvHashSet::<(NodeIndex, NodeIndex)>::with_capacity_and_hasher(
+        edgelist_raw.len(), Default::default()
+    );
     for x in edgelist_raw {
         let child_raw = x.0;
         let parent_raw = x.1;
@@ -213,7 +215,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
         }
     };
     
-    let mut edge_list_2 = HashSet::<(NodeIndex, NodeIndex)>::new();
+    let mut edge_list_2 = FnvHashSet::<(NodeIndex, NodeIndex)>::default();
     for mimenode in graph.externals(Incoming) {
         
         let ref mimetype = graph[mimenode];
