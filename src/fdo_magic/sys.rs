@@ -53,7 +53,7 @@ pub mod init {
         let mut subclasses = Vec::<(MIME, MIME)>::new();
         
         for x in r.lines() {
-            let line = x?;
+            let line = x;
             
             let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
             let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
@@ -83,6 +83,7 @@ pub mod init {
     }
     
     /// Get list of parent -> child subclass links
+    #[cfg(not(feature="staticmime"))]
     pub fn get_subclasses() -> Vec<(MIME, MIME)> {
     
         let mut subclasses = read_subclasses().unwrap_or(Vec::<(MIME, MIME)>::new());
@@ -101,10 +102,22 @@ pub mod init {
         
         subclasses
     }
+    /// Return empty list if using staticmime
+    #[cfg(feature="staticmime")]
+    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
+        Vec::<(MIME, MIME)>::new()
+    }
     
     /// Get list of supported MIME types
+    #[cfg(not(feature="staticmime"))]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().map(|x| convmime!(x)).collect()
+    }
+    
+    /// Return empty list if using staticmime
+    #[cfg(feature="staticmime")]
+    pub fn get_supported() -> Vec<MIME> {
+        Vec::<MIME>::new()
     }
 }
 

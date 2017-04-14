@@ -69,8 +69,13 @@ pub mod init {
     }
     
     /// Get list of supported MIME types
+    #[cfg(not(feature="staticmime"))]
     pub fn get_supported() -> Vec<MIME> {
-        super::ALLRULES.keys().map(|x| convmime!(x)).collect()
+        super::ALLRULES.keys().cloned().collect()
+    }
+    #[cfg(feature="staticmime")]
+    pub fn get_supported() -> Vec<MIME> {
+        super::ALLRULES.keys().map(|x| *x).collect()
     }
     
     /// Get list of parent -> child subclass links

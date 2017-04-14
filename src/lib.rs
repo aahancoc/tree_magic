@@ -42,6 +42,7 @@ struct CheckerStruct {
 /// List of checker functions
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
+        #[cfg(not(feature="staticmime"))]
         CheckerStruct{
             from_u8: fdo_magic::sys::check::from_u8,
             from_filepath: fdo_magic::sys::check::from_filepath,

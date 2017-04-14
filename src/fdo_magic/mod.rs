@@ -5,6 +5,7 @@ extern crate petgraph;
 extern crate fnv;
 
 pub mod builtin;
+#[cfg(not(feature="staticmime"))]
 pub mod sys;
 
 // We can't have staticmime and sys_fdo_magic enabled
@@ -248,6 +249,7 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
+    #[cfg(not(feature="staticmime"))]
     pub fn from_filepath(filepath: &str) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
