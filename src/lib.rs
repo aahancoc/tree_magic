@@ -313,20 +313,28 @@ fn get_alias(mimetype: &String) -> &String {
     }
 }
 
+/// Internal function. Checks if an alias exists, and if it does,
+/// then runs match_u8.
+fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
+{
+    match CHECKER_SUPPORT.get(mimetype) {
+        None => {panic!("{} not supported", mimetype);},
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype)
+    }
+}
 
 /// Checks if the given bytestream matches the given MIME type.
 ///
-/// Returns true or false if it matches or not. If the given mime type is not known,
+/// Returns true or false if it matches or not. If the given MIME type is not known,
 /// the function will always return false.
+/// If mimetype is an alias of a known MIME, the file will be checked agains that MIME.
 pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
-    let x = get_alias(&oldmime);
-    match CHECKER_SUPPORT.get(unconvmime!(x)) {
-        None => {panic!("{} not supported", x);},
-        Some(y) => (CHECKERS[*y].from_u8)(bytes, unconvmime!(x))
-    }
+    let x = unconvmime!(get_alias(&oldmime));
+    
+    match_u8_noalias(x, bytes)
 }
 
 
@@ -343,7 +351,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// TYPE.hash.
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
-	typegraph_walker(parentnode, bytes, match_u8)
+	typegraph_walker(parentnode, bytes, match_u8_noalias)
 }
 
 /// Gets the type of a file from a byte stream.
@@ -360,6 +368,16 @@ pub fn from_u8(bytes: &[u8]) -> Option<MIME>
     from_u8_node(node, bytes)
 }
 
+/// Internal function. Checks if an alias exists, and if it does,
+/// then runs match_u8.
+fn match_filepath_noalias(mimetype: &str, filepath: &str) -> bool
+{
+    match CHECKER_SUPPORT.get(mimetype) {
+        None => {panic!("{} not supported", mimetype);},
+        Some(y) => (CHECKERS[*y].from_filepath)(filepath, mimetype)
+    }
+}
+
 /// Check if the given filepath matches the given MIME type.
 ///
 /// Returns true or false if it matches or not, or an Error if the file could
@@ -368,11 +386,9 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> bool
 {
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
-    let x = get_alias(&oldmime);
-    match CHECKER_SUPPORT.get(unconvmime!(x)) {
-        None => false,
-        Some(y) => (CHECKERS[*y].from_filepath)(filepath, unconvmime!(x))
-    }
+    let x = unconvmime!(get_alias(&oldmime));
+   
+    match_filepath_noalias(x, filepath)
 }
 
 
@@ -395,7 +411,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME>
     // Ensure it's at least a application/octet-stream
     if !match_filepath("application/octet-stream", filepath){
         // Check the other base types
-        return typegraph_walker(parentnode, filepath, match_filepath);
+        return typegraph_walker(parentnode, filepath, match_filepath_noalias);
     }
     
     // Load the first 4K of file and parse as u8

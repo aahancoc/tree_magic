@@ -21,7 +21,7 @@ clap = { version = "^2", optional = true }
 [features]
 cli = ["clap", "tabwriter"]
 staticmime = []     # Use &'static str for output insead of String. (disabled for now)
-default = ["cli"]
+default = ["cli", "staticmime"]
 
 [lib]
 crate-type = ["lib"]
