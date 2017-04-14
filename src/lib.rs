@@ -43,10 +43,16 @@ struct CheckerStruct {
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
         CheckerStruct{
-            from_u8: fdo_magic::check::from_u8,
-            from_filepath: fdo_magic::check::from_filepath,
-            get_supported: fdo_magic::init::get_supported,
-            get_subclasses: fdo_magic::init::get_subclasses
+            from_u8: fdo_magic::sys::check::from_u8,
+            from_filepath: fdo_magic::sys::check::from_filepath,
+            get_supported: fdo_magic::sys::init::get_supported,
+            get_subclasses: fdo_magic::sys::init::get_subclasses
+        },
+        CheckerStruct{
+            from_u8: fdo_magic::builtin::check::from_u8,
+            from_filepath: fdo_magic::builtin::check::from_filepath,
+            get_supported: fdo_magic::builtin::init::get_supported,
+            get_subclasses: fdo_magic::builtin::init::get_subclasses
         },
         CheckerStruct{
             from_u8: basetype::check::from_u8,
@@ -230,6 +236,7 @@ fn typegraph_walker<T: Clone>(
     matchfn: fn(&str, T) -> bool
 ) -> Option<MIME> {
 
+    // Pull most common types towards top
     let mut children: Vec<NodeIndex> = TYPE.graph
         .neighbors_directed(parentnode, Outgoing)
         .collect();
@@ -242,6 +249,7 @@ fn typegraph_walker<T: Clone>(
         }
     }
 
+    // Walk graph
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
         let result = (matchfn)(mimetype, input.clone());

@@ -1,9 +1,11 @@
+// Common routines for all fdo_magic parsers
+
 extern crate std;
 extern crate petgraph;
 extern crate fnv;
-use petgraph::prelude::*;
-use fnv::FnvHashMap;
-use MIME;
+
+pub mod builtin;
+pub mod sys;
 
 // We can't have staticmime and sys_fdo_magic enabled
 // because we can't statically refer to a file on disk.
@@ -28,28 +30,6 @@ macro_rules! convmime {
 #[cfg(feature="staticmime")]
 macro_rules! convmime {
     ($x:expr) => {$x}
-}
-
-/// Preload alias list
-lazy_static! {
-	static ref ALIASES: FnvHashMap<MIME, MIME> = {
-		init::read_aliaslist().unwrap_or(FnvHashMap::default())
-	};
-}
-
-/// Load magic file before anything else.
-/// ays_fdo_magic always disabled on Windows.
-#[cfg(all(feature="sys_fdo_magic", unix))]
-lazy_static! {
-    static ref ALLRULES: FnvHashMap<MIME, DiGraph<MagicRule, u32>> = {
-        ruleset::from_filepath("/usr/share/mime/magic").unwrap_or(FnvHashMap::default())
-    };
-}
-#[cfg(not(all(feature="sys_fdo_magic", unix)))]
-lazy_static! {
-    static ref ALLRULES: FnvHashMap<MIME, DiGraph<MagicRule, u32>> = {
-        ruleset::from_u8(include_bytes!("magic")).unwrap_or(FnvHashMap::default())
-    };
 }
 
 pub mod ruleset {
@@ -268,7 +248,6 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    #[cfg(feature="sys_fdo_magic")]
     pub fn from_filepath(filepath: &str) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;
@@ -288,129 +267,14 @@ pub mod ruleset {
 
 }
 
-/// Init whatever is needed for test mod to work
-pub mod init {
-
-    extern crate std;
-    extern crate fnv;
-    use fnv::FnvHashMap;
-    use MIME;
-    #[cfg(feature="sys_fdo_magic")] use std::io::prelude::*;
-    #[cfg(feature="sys_fdo_magic")] use std::io::BufReader;
-    #[cfg(feature="sys_fdo_magic")] use std::fs::File;
-
-    /// Read all subclass lines from file
-    #[cfg(feature="sys_fdo_magic")]
-    fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
-    
-        let f = File::open("/usr/share/mime/subclasses")?;
-        let r = BufReader::new(f);
-        let mut subclasses = Vec::<(MIME, MIME)>::new();
-        
-        for x in r.lines() {
-            let line = x?;
-            
-            let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
-            let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
-            
-            subclasses.push( (parent, child) );
-        }
-        
-        Ok(subclasses)
-    }
-    #[cfg(not(feature="sys_fdo_magic"))]
-    fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
-    
-        let r = include_str!("subclasses");
-        let mut subclasses = Vec::<(MIME, MIME)>::new();
-        
-        for line in r.lines() {
-            let child = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
-            let parent = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
-            
-            subclasses.push( (parent, child) );
-        }
-        
-        Ok(subclasses)
-    }
-    
-    // Get filetype aliases (not really public but I need it to be
-    #[cfg(feature="sys_fdo_magic")]
-    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
-        let faliases = File::open("/usr/share/mime/aliases")?;
-        let raliases = BufReader::new(faliases);
-        let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
-        
-        for x in raliases.lines() {
-            let line = x?;
-        
-            let a = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
-            let b = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
-            aliaslist.insert(a,b);
-        }
-        
-        let aliaslist = aliaslist;
-        Ok(aliaslist)
-    }
-    #[cfg(not(feature="sys_fdo_magic"))]
-    pub fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
-        let raliases = include_str!("aliases");
-        let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
-        
-        for line in raliases.lines() {
-            let a = convmime!(line.split_whitespace().nth(0).unwrap_or(""));
-            let b = convmime!(line.split_whitespace().nth(1).unwrap_or(""));
-            aliaslist.insert(a,b);
-        }
-        
-        let aliaslist = aliaslist;
-        Ok(aliaslist)
-    }
-	
-	/*pub fn get_aliases(mimetype: &str) -> Vec<MIME> {
-		super::ALIASES.iter()
-			.filter(|x| x.0 == mimetype || x.1 == mimetype) // Get only where mime is listed
-			.map(|x| if x.0 == mimetype {x.1} else {x.0} ) // Get the thing that isn't the mime
-			.cloned().collect()
-	}*/
-    
-    /// Get list of supported MIME types
-    #[cfg(not(feature="staticmime"))]
-    pub fn get_supported() -> Vec<MIME> {
-        super::ALLRULES.keys().map(|x| x.clone()).collect()
-    }
-    #[cfg(feature="staticmime")]
-    pub fn get_supported() -> Vec<MIME> {
-        super::ALLRULES.keys().map(|x| *x).collect()
-    }
-
-    /// Get list of parent -> child subclass links
-    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
-    
-        let mut subclasses = read_subclasses().unwrap_or(Vec::<(MIME, MIME)>::new());
-        
-        // If child or parent refers to an alias, change it to the real type
-        for x in 0..subclasses.len(){
-            match super::ALIASES.get(&subclasses[x].0) {
-                Some(alias) => {subclasses[x].0 = alias.clone();}
-                None => {}
-            }
-            match super::ALIASES.get(&subclasses[x].1) {
-                Some(alias) => {subclasses[x].1 = alias.clone();}
-                None => {}
-            }
-        }
-        
-        subclasses
-    }
-}
-
 // Functions to check if a file matches a magic entry
 pub mod check {
 
     extern crate std;
+    extern crate petgraph;
+    use petgraph::prelude::*;
     
-    fn from_u8_singlerule(file: &[u8], rule: super::MagicRule) -> bool {
+    fn from_u8_singlerule(file: &[u8], rule: &super::MagicRule) -> bool {
         
         // Check if we're even in bounds
         let bound_min = //std::cmp::min(
@@ -443,7 +307,7 @@ pub mod check {
 					//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
 					return rule.val.iter().eq(x.iter());
 				},
-				Some(mask) => {
+				Some(ref mask) => {
 					//println!("\tMask == Some, len == {}", mask.len());
 					//println!("\tIndent: {}, Start: {}", rule.indent_level, rule.start_off);
 					let mut x: Vec<u8> = file.iter()
@@ -502,122 +366,51 @@ pub mod check {
 
         false
     }
+    
+    /// Test every given rule by walking graph
+    /// TODO: Not loving the code duplication here.
+    pub fn from_u8_walker(
+        file: &[u8],
+        mimetype: &str,
+        graph: &DiGraph<super::MagicRule, u32>,
+        node: NodeIndex,
+        isroot: bool
+    ) -> bool {
 
-    /// Test against all rules
-    // This got really complicated really fast...
-    pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
-		
-		use petgraph::prelude::*;
-		//use petgraph::dot::{Dot, Config};
-		
-		//println!("{}", mimetype);
-		
-		// Get mimetype in case user provides alias
-		let mimetype = match super::ALIASES.get(mimetype) {
-			None => mimetype,
-			Some(x) => x
-		};
-    
-        // Get magic ruleset
-        let graph = match super::ALLRULES.get(mimetype) {
-            Some(item) => item,
-            None => return false // No rule for this mime
-        };
-		
-		//println!("{:?}", Dot::with_config(&graph, &[Config::EdgeNoLabel]));
-    
-        // Test every given rule by walking graph
-		let externals = graph.externals(Incoming);
-		
-		for x in externals {
-			
-			let n = graph.neighbors_directed(x, Outgoing);
-			let ref rule = graph[x];
-			
-			// Check root
-			match from_u8_singlerule(&file, rule.clone()) {
-				true => {
-					//println!("\t\tMatch!");
-					// Check next indent level if needed
-					if n.clone().count() != 0 {
-						//println!("\t\tContinuing...");
-					// Next indent level is lower, so this must be it
-					} else {
-						//println!("\t\tOkay!");
-						return true;
-					}
-				},
-				// No match, so keep searching
-				false => {
-					continue;
-				}
-			};
-			
-			
-			for y in n {
-				let ref rule = graph[y];
-				
-				match from_u8_singlerule(&file, rule.clone()) {
-                    true => {
-						//println!("\t\tMatch!");
-                        // Check next indent level if needed
-                        if graph.neighbors_directed(y, Outgoing).count() != 0 {
-							//println!("\t\tContinuing...");
-                            continue;
-                        // Next indent level is lower, so this must be it
-                        } else {
-							//println!("\t\tOkay!");
-                            return true;
-                        }
-                    },
-                    // No match, so keep searching
-                    false => {
-						continue;
-					}
-                };
-			}
-		}
-		
-		return false;
-    }
-    
-    pub fn from_filepath(filepath: &str, mimetype: &str) -> bool{
-        use std::io::prelude::*;
-        use std::io::BufReader;
-        use std::fs::File;
+        let n = graph.neighbors_directed(node, Outgoing);
         
-        // Get magic ruleset
-        let magic_rules = match super::ALLRULES.get(mimetype) {
-            Some(item) => item,
-            None => return false // No rule for this mime
-        };
-
-        // Get # of bytes to read
-        let mut scanlen:u64 = 0;
-        for x in magic_rules.raw_nodes() {
-			let ref y = x.weight;
-            let tmplen:u64 = 
-                y.start_off as u64 +
-                y.val_len as u64 +
-                y.region_len as u64;
-                
-            if tmplen > scanlen {
-                scanlen = tmplen;
+        if isroot {
+            let ref rule = graph[node];
+            
+            // Check root
+            if !from_u8_singlerule(&file, rule) {
+                return false;
+            }
+            
+            // Return if that was the only test
+            if n.clone().count() == 0 {
+                return true;
+            }
+            
+            // Otherwise next indent level is lower, so continue
+        }
+        
+        // Check subrules recursively
+        for y in n {
+            let ref rule = graph[y];
+            
+            if from_u8_singlerule(&file, rule) {
+                // Check next indent level if needed
+                if graph.neighbors_directed(y, Outgoing).count() != 0 {
+                    return from_u8_walker(file, mimetype, graph, y, false);
+                // Next indent level is lower, so this must be it
+                } else {
+                    return true;
+                }
             }
         }
-        
-        let f = match File::open(filepath) {
-            Ok(x) => x,
-            Err(_) => return false
-        };
-        let r = BufReader::new(f);
-        let mut b = Vec::<u8>::new();
-        match r.take(scanlen).read_to_end(&mut b) {
-            Ok(_) => {},
-            Err(_) => return false
-        }
-        
-        from_u8(b.as_slice(), mimetype)
+		
+		false
     }
 
 }
