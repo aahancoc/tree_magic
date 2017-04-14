@@ -20,10 +20,6 @@ mod match_u8 {
         assert!(tree_magic::match_u8("image/tiff", include_bytes!("image/tiff")));
     }
     #[test]
-    fn image_x_portable_pixmap() {
-        assert!(tree_magic::match_u8("image/x-portable-pixmap", include_bytes!("image/x-portable-pixmap")));
-    }
-    #[test]
     fn image_x_portable_bitmap() {
         assert!(tree_magic::match_u8("image/x-portable-bitmap", include_bytes!("image/x-portable-bitmap")));
     }

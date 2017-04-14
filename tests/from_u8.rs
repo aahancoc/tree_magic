@@ -42,13 +42,6 @@ mod from_u8 {
         );
     }
     #[test]
-    fn image_x_portable_pixmap() {
-        assert_eq!(
-            tree_magic::from_u8(include_bytes!("image/x-portable-pixmap")),
-            Some(convmime!("image/x-portable-pixmap"))
-        );
-    }
-    #[test]
     fn image_x_portable_bitmap() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-portable-bitmap")),
