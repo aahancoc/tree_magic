@@ -17,18 +17,20 @@ fnv = "^1"
 
 tabwriter = { version = "^1", optional = true }
 clap = { version = "^2", optional = true }
-crossbeam = { version = "^0.2", optional = true }
+scoped_threadpool = { version = "^0.1", optional = true }
+walkdir = { version = "^1", optional = true }
+num_cpus = { version = "^1", optional = true }
 
 [features]
-cli = ["clap", "tabwriter", "crossbeam"]
+cli = ["clap", "tabwriter", "scoped_threadpool", "walkdir", "num_cpus"]
 staticmime = []     # Use &'static str for output insead of String. (disabled for now)
-default = ["cli", "staticmime"]
+default = ["cli"]
 
 [lib]
 crate-type = ["lib"]
 path = "src/lib.rs"
 
 [[bin]]
-required-features = ["cli"]
+#required-features = ["cli"]
 name = "tmagic"
 path = "src/main.rs"
