@@ -13,9 +13,8 @@
 //!   between 5,000ns and 100,000ns to find a MIME type.)
 //! - Check if a file *is* a certain type.
 //! - Handles aliases (ex: `application/zip` vs `application/x-zip-compressed`)
-//! - Uses system [FreeDesktop.org magic files](https://specifications.freedesktop.org/
-//!   shared-mime-info-spec/shared-mime-info-spec-latest.html) on Linux systems, and built-in
-//!   magic file on Windows and macOS.
+//! - Uses system [FreeDesktop.org magic files](https://specifications.freedesktop.org/shared-mime-info-spec/shared-mime-info-spec-latest.html) 
+//!   on Linux systems, and built-in magic file on Windows and macOS.
 //! - Can delegate different file types to different "checkers", reducing false positives
 //!   by choosing a different method of attack.
 //!
@@ -461,7 +460,7 @@ fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
 /// ```rust
 /// use std::path::Path;
 ///
-/// // Path to a GIF file
+/// // Get path to a GIF file
 /// let path: &Path = Path::new("tests/image/gif");
 ///
 /// // Check if the MIME and the file are a match
