@@ -1,6 +1,44 @@
-//! This is documentation for the tree_magic crate.
+//! `tree_magic` is a Rust crate that determines the MIME type a given file or byte stream. 
 //!
-//! See the README in the repository for more information.
+//! # About
+//! `tree_magic` is designed to be more efficient and to have less false positives compared
+//! to the old approach used by `libmagic`, or old-fashioned file extension comparisons.
+//!
+//! Instead, this loads all known MIME types into a tree based on subclasses. Then, instead
+//! of checking against *every* file type, `tree_magic` will traverse down the tree and
+//! only check the files that make sense to check.
+//!
+//! # Features
+//! - Very fast perfomance (~150ns to check one file against one type,
+//!   between 5,000ns and 100,000ns to find a MIME type.)
+//! - Check if a file *is* a certain type.
+//! - Handles aliases (ex: `application/zip` vs `application/x-zip-compressed`)
+//! - Uses system [FreeDesktop.org magic files](https://specifications.freedesktop.org/
+//!   shared-mime-info-spec/shared-mime-info-spec-latest.html) on Linux systems, and built-in
+//!   magic file on Windows and macOS.
+//! - Can delegate different file types to different "checkers", reducing false positives
+//!   by choosing a different method of attack.
+//!
+//! # Feature flags
+//! `cli`:        Enable building of `tmagic` binary
+//!
+//! `staticmime`: Change output of all `from_*` functions from `String` to `&'static str`.
+//!               Disables ability to load system magic files. Slightly faster.
+//! # Example
+//! ```rust
+//! extern crate tree_magic;
+//! 
+//! // Load a GIF file
+//! let input: &[u8] = include_bytes!("tests/image/gif");
+//!
+//! // Find the MIME type of the GIF
+//! let result = tree_magic::from_u8(input);
+//! assert_eq!(result, "image/gif".to_string());
+//!
+//! // Check if the MIME and the file are a match
+//! let result = tree_magic::match_u8("image/gif", input);
+//! assert_eq!(result, true);
+//! ```
 
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
@@ -14,6 +52,7 @@ use fnv::FnvHashSet;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
+use std::path::Path;
 
 mod fdo_magic;
 mod basetype;
@@ -34,7 +73,7 @@ const TYPEORDER: [&'static str; 6] =
 
 struct CheckerStruct {
     from_u8: fn(&[u8], &str) -> bool,
-    from_filepath: fn(&str, &str) -> bool,
+    from_filepath: fn(&Path, &str) -> bool,
     get_supported: fn() -> Vec<MIME>,
     get_subclasses: fn() -> Vec<(MIME, MIME)>,
     get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
@@ -97,7 +136,7 @@ lazy_static! {
 /// (EX: `application/json` -> `text/plain` -> `application/octet-stream`)
 /// This is a `petgraph` DiGraph, so you can walk the tree if needed.
 /// 
-/// The `hash` is a mapping between mime types and nodes on the graph.
+/// The `hash` is a mapping between MIME types and nodes on the graph.
 /// The root of the graph is "all/all", so start traversing there unless
 /// you need to jump to a particular node.
 pub struct TypeStruct {
@@ -328,6 +367,16 @@ fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
 /// Returns true or false if it matches or not. If the given MIME type is not known,
 /// the function will always return false.
 /// If mimetype is an alias of a known MIME, the file will be checked agains that MIME.
+///
+/// # Examples
+/// ```rust
+/// // Load a GIF file
+/// let input: &[u8] = include_bytes!("tests/image/gif");
+///
+/// // Check if the MIME and the file are a match
+/// let result = tree_magic::match_u8("image/gif", input);
+/// assert_eq!(result, true);
+/// ```
 pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 {
     // Transform alias if needed
@@ -341,14 +390,31 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// Gets the type of a file from a raw bytestream, starting at a certain node
 /// in the type graph.
 ///
-/// Returns mime as string wrapped in Some if a type matches, or
-/// None if no match is found.
-/// Retreive the node from the `TYPE.hash` FnvHashMap, using the MIME as the key.
+/// Returns MIME as string wrapped in Some if a type matches, or
+/// None if no match is found under the given node.
+/// Retreive the node from the `TYPE.hash` HashMap, using the MIME as the key.
 ///
-/// ## Panics
+/// # Panics
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
 /// TYPE.hash.
+///
+/// # Examples
+/// ```rust
+/// /// In this example, we know we have a ZIP, but we want to see if it's something
+/// /// like an Office document that subclasses a ZIP. If it is not, like this example,
+/// /// it will return None.
+///
+/// // Load a ZIP file
+/// let input: &[u8] = include_bytes!("tests/application/zip");
+/// 
+/// // Get the graph node for ZIP
+/// let zipnode = tree_magic::TYPE.hash.get("application/zip").unwrap();
+///
+/// // Find the MIME type of the ZIP, starting from ZIP.
+/// let result = tree_magic::from_u8_node(*zipnode, input);
+/// assert_eq!(result, None);
+/// ```
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
 	typegraph_walker(parentnode, bytes, match_u8_noalias)
@@ -356,21 +422,29 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 
 /// Gets the type of a file from a byte stream.
 ///
-/// Returns mime as string wrapped in Some if a type matches, or
-/// None if no match is found. Because this starts from the type graph root,
-/// it is a bug if this returns None.
-pub fn from_u8(bytes: &[u8]) -> Option<MIME>
+/// Returns MIME as string.
+///
+/// # Examples
+/// ```rust
+/// // Load a GIF file
+/// let input: &[u8] = include_bytes!("tests/image/gif");
+///
+/// // Find the MIME type of the GIF
+/// let result = tree_magic::from_u8(input);
+/// assert_eq!(result, "image/gif".to_string());
+/// ```
+pub fn from_u8(bytes: &[u8]) -> MIME
 {
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
-        None => return None
+        None => panic!("No filetype definitions are loaded.")
     };
-    from_u8_node(node, bytes)
+    from_u8_node(node, bytes).unwrap()
 }
 
 /// Internal function. Checks if an alias exists, and if it does,
-/// then runs match_u8.
-fn match_filepath_noalias(mimetype: &str, filepath: &str) -> bool
+/// then runs `match_u8`.
+fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
@@ -381,8 +455,20 @@ fn match_filepath_noalias(mimetype: &str, filepath: &str) -> bool
 /// Check if the given filepath matches the given MIME type.
 ///
 /// Returns true or false if it matches or not, or an Error if the file could
-/// not be read. If the given mime type is not known, it will always return false.
-pub fn match_filepath(mimetype: &str, filepath: &str) -> bool 
+/// not be read. If the given MIME type is not known, it will always return false.
+///
+/// # Examples
+/// ```rust
+/// use std::path::Path;
+///
+/// // Path to a GIF file
+/// let path: &Path = Path::new("tests/image/gif");
+///
+/// // Check if the MIME and the file are a match
+/// let result = tree_magic::match_filepath("image/gif", path);
+/// assert_eq!(result, true);
+/// ```
+pub fn match_filepath(mimetype: &str, filepath: &Path) -> bool 
 {
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
@@ -395,15 +481,33 @@ pub fn match_filepath(mimetype: &str, filepath: &str) -> bool
 /// Gets the type of a file from a filepath, starting at a certain node
 /// in the type graph.
 ///
-/// Returns mime as string wrapped in Some if a type matches, or
+/// Returns MIME as string wrapped in Some if a type matches, or
 /// None if the file is not found or cannot be opened.
 /// Retreive the node from the `TYPE.hash` FnvHashMap, using the MIME as the key.
 ///
-/// ## Panics
+/// # Panics
 /// Will panic if the given node is not found in the graph.
 /// As the graph is immutable, this should not happen if the node index comes from
-/// TYPE.hash.
-pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME> 
+/// `TYPE.hash`.
+///
+/// # Examples
+/// ```rust
+/// /// In this example, we know we have a ZIP, but we want to see if it's something
+/// /// like an Office document that subclasses a ZIP. If it is not, like this example,
+/// /// it will return None.
+/// use std::path::Path;
+///
+/// // Get path to a ZIP file
+/// let path: &Path = Path::new("tests/application/zip");
+/// 
+/// // Get the graph node for ZIP
+/// let zipnode = tree_magic::TYPE.hash.get("application/zip").unwrap();
+///
+/// // Find the MIME type of the ZIP, starting from ZIP.
+/// let result = tree_magic::from_filepath_node(*zipnode, path);
+/// assert_eq!(result, None);
+/// ```
+pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME> 
 {
     // We're actually just going to thunk this down to a u8
     // unless we're checking via basetype for speed reasons.
@@ -433,23 +537,40 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME>
 /// Gets the type of a file from a filepath.
 ///
 /// Does not look at file name or extension, just the contents.
-/// Returns mime as string wrapped in Some if a type matches, or
-/// None if the file is not found or cannot be opened.
-pub fn from_filepath(filepath: &str) -> Option<MIME> {
+/// Returns MIME as string.
+///
+/// # Examples
+/// ```rust
+/// use std::path::Path;
+///
+/// // Get paath to a GIF file
+/// let path: &Path = Path::new("tests/image/gif");
+///
+/// // Find the MIME type of the GIF
+/// let result = tree_magic::from_filepath(path);
+/// assert_eq!(result, "image/gif".to_string());
+/// ```
+pub fn from_filepath(filepath: &Path) -> MIME {
 
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
-        None => return None
+        None => panic!("No filetype definitions are loaded.")
     };
     
-    from_filepath_node(node, filepath)
+    from_filepath_node(node, filepath).unwrap()
 }
 
 /// Determines if a MIME is an alias of another MIME
 ///
 /// If this returns true, that means the two MIME types are equivalent.
 /// If this returns false, either one of the MIME types are missing, or they are different.
-
+///
+/// # Examples
+/// ```
+/// let mime1 = "application/zip".to_string();
+/// let mime2 = "application/x-zip-compressed".to_string();
+///
+/// assert_eq!( tree_magic::is_alias(mime1, mime2), true );
 pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
     let x = get_alias(&mime1);
     let y = get_alias(&mime2);

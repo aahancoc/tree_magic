@@ -61,13 +61,14 @@ pub mod init {
 pub mod check {
 
     extern crate std;
+    use std::path::Path;
     
     /// If there are any null bytes, return False. Otherwise return True.
     fn is_text_plain_from_u8(b: &[u8]) -> bool {
         b.iter().filter(|&x| *x == 0).count() == 0
     }
 
-    fn is_text_plain_from_filepath(filepath: &str) -> bool {
+    fn is_text_plain_from_filepath(filepath: &Path) -> bool {
         use std::io::prelude::*;
         use std::io::BufReader;
         use std::fs::File;
@@ -99,7 +100,7 @@ pub mod check {
         }
     }
     
-    pub fn from_filepath(filepath: &str, mimetype: &str) -> bool{
+    pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
     
         use std::fs;
         // Being bad with error handling here,

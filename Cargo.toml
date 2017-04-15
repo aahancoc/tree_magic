@@ -1,6 +1,6 @@
 [package]
 name = "tree_magic"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
 repository = "https://github.com/aahancoc/tree_magic/"
@@ -24,13 +24,13 @@ num_cpus = { version = "^1", optional = true }
 [features]
 cli = ["clap", "tabwriter", "scoped_threadpool", "walkdir", "num_cpus"]
 staticmime = []     # Use &'static str for output insead of String. (disabled for now)
-default = ["cli", "staticmime"]
+default = []
 
 [lib]
 crate-type = ["lib"]
 path = "src/lib.rs"
 
 [[bin]]
-#required-features = ["cli"]
+required-features = ["cli"]
 name = "tmagic"
 path = "src/main.rs"

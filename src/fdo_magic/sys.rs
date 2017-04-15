@@ -128,6 +128,7 @@ pub mod init {
 pub mod check {
     extern crate std;
     extern crate petgraph;
+    use std::path::Path;
     use petgraph::prelude::*;
     use fdo_magic;
 
@@ -158,7 +159,7 @@ pub mod check {
     
     /// This only exists for the case of a direct match_filepath call
     /// and even then we could probably get rid of this...
-    pub fn from_filepath(filepath: &str, mimetype: &str) -> bool{
+    pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
         use std::fs::File;
         use std::io::Read;
         

@@ -16,14 +16,14 @@ mod from_u8 {
     fn image_gif() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/gif")),
-            Some(convmime!("image/gif"))
+            convmime!("image/gif")
         );
     }
     #[test]
     fn image_png() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/png")),
-            Some(convmime!("image/png"))
+            convmime!("image/png")
         );
     }
     #[test]
@@ -31,35 +31,35 @@ mod from_u8 {
     fn image_bmp() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/bmp")),
-            Some(convmime!("image/bmp"))
+            convmime!("image/bmp")
         );
     }
     #[test]
     fn image_tiff() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/tiff")),
-            Some(convmime!("image/tiff"))
+            convmime!("image/tiff")
         );
     }
     #[test]
     fn image_x_portable_bitmap() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-portable-bitmap")),
-            Some(convmime!("image/x-portable-bitmap"))
+            convmime!("image/x-portable-bitmap")
         );
     }
     #[test]
     fn image_x_pcx() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-pcx")),
-            Some(convmime!("image/vnd.zbrush.pcx"))
+            convmime!("image/vnd.zbrush.pcx")
         );
     }
     #[test]
     fn image_x_tga() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("image/x-tga")),
-            Some(convmime!("image/x-tga"))
+            convmime!("image/x-tga")
         );
     }
 
@@ -69,21 +69,21 @@ mod from_u8 {
     fn application_tar() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("application/x-tar")),
-            Some(convmime!("application/x-tar"))
+            convmime!("application/x-tar")
         );
     }
     #[test]
     fn application_x_7z() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("application/x-7z-compressed")),
-            Some(convmime!("application/x-7z-compressed"))
+            convmime!("application/x-7z-compressed")
         );
     }
     #[test]
     fn application_zip() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("application/zip")),
-            Some(convmime!("application/zip"))
+            convmime!("application/zip")
         );
     }
 
@@ -92,7 +92,7 @@ mod from_u8 {
     fn text_plain() {
         assert_eq!(
             tree_magic::from_u8(include_bytes!("text/plain")),
-            Some(convmime!("text/plain"))
+            convmime!("text/plain")
         );
     }
 

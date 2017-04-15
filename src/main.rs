@@ -1,4 +1,27 @@
-//extern crate tree_magic;
+//! `tmagic`: Command line client for tree_magic
+//!
+//! # Features
+//! - Find MIME of a file
+//! - Match file against a set of MIMEs (significantly faster)
+//! - Search a folder recursively
+//!
+//! # Usage
+//!
+//! ```
+//! tmagic [FLAGS] [OPTIONS] <file>...
+//!
+//! FLAGS:
+//!     -h, --help             Prints help information
+//!     -r, --recursive        Search directories recursively
+//!         --ugly             Print results as they come in, at expense of tab alignment
+//!     -V, --version          Prints version information
+//!
+//! OPTIONS:
+//!     -m, --match=<match>    Print only files that match given MIMEs, seperated by commas
+//!
+//! ARGS:
+//!     <file>...              List of files or folders to check. Wildcards supported. 
+
 extern crate clap;
 extern crate tabwriter;
 extern crate tree_magic;
@@ -9,6 +32,7 @@ extern crate num_cpus;
 use tabwriter::TabWriter;
 use std::io::prelude::*;
 use std::sync::mpsc;
+use std::path::PathBuf;
 use walkdir::{WalkDir};
 use scoped_threadpool::Pool;
 
@@ -32,6 +56,7 @@ fn main() {
             .required(true)
             .index(1)
             .multiple(true)
+            .help("List of files or folders to check. Wildcards supported.")
         )
         .arg(Arg::with_name("recursive")
             .short("r")
@@ -44,7 +69,7 @@ fn main() {
             .use_delimiter(true)
             .takes_value(true)
             .require_equals(true)
-            .help("Print only files that match given MIME")
+            .help("Print only files that match given MIMEs, seperated by commas")
         )
         .arg(Arg::with_name("ugly")
             .long("ugly")
@@ -52,9 +77,9 @@ fn main() {
         )
         .get_matches();
         
-    let mut files: Vec<String> = args.values_of("file")
+    let mut files: Vec<PathBuf> = args.values_of("file")
         .unwrap()
-        .map(|x| x.to_string())
+        .map(|x| PathBuf::from(x))
         .collect();
     let is_ugly = args.is_present("ugly");
     let is_recursive = args.is_present("recursive");
@@ -72,11 +97,7 @@ fn main() {
         for dir in files.clone() {
             let entries = WalkDir::new(dir).into_iter().filter_map(|e| e.ok());
             for entry in entries {
-                files.push(entry.path()
-                    .to_str()
-                    .unwrap()
-                    .to_string()
-                );
+                files.push(PathBuf::from(entry.path()));
             }
         }
     }
@@ -87,11 +108,12 @@ fn main() {
     if check_against.is_empty(){
         pool.scoped(|scope| {
             for file in files {
+                //let file = file.as_str();
+                //let file = Path::new(file);
                 let tx = tx.clone();
                 scope.execute(move || {
-                    let result = tree_magic::from_filepath(file.as_str());
-                    let result = result.unwrap_or(convmime!("inode/none"));
-                    let result = format!("{}:\t{:?}", file, result);
+                    let result = tree_magic::from_filepath(file.as_path());
+                    let result = format!("{:?}:\t{:?}", file, result);
                     if is_ugly {
                         println!("{}", result);
                     } else {
@@ -104,6 +126,8 @@ fn main() {
     } else {
         pool.scoped(|scope| {
             for file in files {
+                //let file = file.as_str();
+                //let file = Path::new(file);
                 let tx = tx.clone();
                 let check_against = check_against.clone();
                 
@@ -111,7 +135,7 @@ fn main() {
                     let mut result: Option<String> = None;
                 
                     for mime in check_against {
-                        let out = tree_magic::match_filepath(mime.as_str(), file.as_str());
+                        let out = tree_magic::match_filepath(mime.as_str(), file.as_path());
                         if out {
                             result = Some(mime);
                             break;
@@ -121,7 +145,7 @@ fn main() {
                     if result.is_none() { return; }
                     
                     let result = result.unwrap();
-                    let result = format!("{}:\t{:?}", file, result);
+                    let result = format!("{:?}:\t{:?}", file, result);
                     if is_ugly {
                         println!("{}", result);
                     } else {
