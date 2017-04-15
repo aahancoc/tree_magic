@@ -1,10 +1,13 @@
 //extern crate tree_magic;
 extern crate clap;
 extern crate tabwriter;
+extern crate crossbeam;
 extern crate tree_magic;
 
 use tabwriter::TabWriter;
 use std::io::prelude::*;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 
 #[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
@@ -31,12 +34,29 @@ fn main() {
     let files: Vec<_> = args.values_of("file").unwrap().collect();
     
     let mut tw = TabWriter::new(vec![]);
+    let (tx, rx) = mpsc::channel();
+    //let list = Arc::new(Mutex::new(Vec::<String>::new()));
     
-    for x in files {
-        let result = tree_magic::from_filepath(x);
-        write!(&mut tw,
-            "{}:\t{:?}\n", x, result.unwrap_or(convmime!("inode/empty"))
-        ).unwrap();
+    crossbeam::scope(|scope| {
+        for x in files {
+            let tx = tx.clone();
+            //let list = list.clone();
+            scope.spawn(move || {
+                let result = tree_magic::from_filepath(x).unwrap_or("inode/empty");
+                let result = format!("{}:\t{:?}\n", x, result);
+                //let ref mut list = *list.lock().unwrap();
+                //list.push(result);
+                tx.send(result).unwrap();
+            });
+        }
+    });
+    drop(tx);
+    
+    let mut list: Vec<String> = rx.iter().collect();
+    //let ref mut list = *list.lock().unwrap();
+    list.sort();
+    for x in list {
+        write!(&mut tw, "{}", x).unwrap();
     }
     
     tw.flush().unwrap();

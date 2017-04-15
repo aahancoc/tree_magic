@@ -422,7 +422,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &str) -> Option<MIME>
     };
     let r = BufReader::new(f);
     let mut b = Vec::<u8>::new();
-    match r.take(4096).read_to_end(&mut b) {
+    match r.take(2048).read_to_end(&mut b) {
         Ok(_) => {},
         Err(_) => return None // Also how?
     }

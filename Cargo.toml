@@ -17,9 +17,10 @@ fnv = "^1"
 
 tabwriter = { version = "^1", optional = true }
 clap = { version = "^2", optional = true }
+crossbeam = { version = "^0.2", optional = true }
 
 [features]
-cli = ["clap", "tabwriter"]
+cli = ["clap", "tabwriter", "crossbeam"]
 staticmime = []     # Use &'static str for output insead of String. (disabled for now)
 default = ["cli", "staticmime"]
 
