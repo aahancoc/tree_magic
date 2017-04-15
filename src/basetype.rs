@@ -114,10 +114,7 @@ pub mod check {
             "all/allfiles" | "application/octet-stream" => return meta.is_file(),
             "inode/directory" => return meta.is_dir(),
             "text/plain" => return is_text_plain_from_filepath(filepath),
-            _ => {
-                println!("{}", mimetype);
-                panic!("This mime is not supported by the mod. (See can_check)")
-            }
+            _ => return false
         }
         
     }

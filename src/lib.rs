@@ -318,7 +318,7 @@ fn get_alias(mimetype: &String) -> &String {
 fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
-        None => {panic!("{} not supported", mimetype);},
+        None => {false},
         Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype)
     }
 }
@@ -373,7 +373,7 @@ pub fn from_u8(bytes: &[u8]) -> Option<MIME>
 fn match_filepath_noalias(mimetype: &str, filepath: &str) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
-        None => {panic!("{} not supported", mimetype);},
+        None => {false},
         Some(y) => (CHECKERS[*y].from_filepath)(filepath, mimetype)
     }
 }

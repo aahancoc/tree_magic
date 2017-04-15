@@ -112,12 +112,6 @@ pub mod check {
     
     /// Test against all rules
     pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
-		
-		/*// Get mimetype in case user provides alias
-		let mimetype = match super::ALIASES.get(mimetype) {
-			None => mimetype,
-			Some(x) => x
-		};*/
     
         // Get magic ruleset
         let graph = match super::ALLRULES.get(mimetype) {
@@ -166,6 +160,13 @@ pub mod check {
             Err(_) => return false
         };
         let mut b = Vec::<u8>::with_capacity(scanlen);
+        
+        // Fill up vector with something
+        for i in 0..scanlen {
+            let _ = i;
+            b.push(0);
+        }
+        
         match f.read_exact(&mut b) {
             Ok(_) => {},
             Err(_) => return false

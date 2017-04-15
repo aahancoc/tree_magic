@@ -187,6 +187,13 @@ pub mod check {
             Err(_) => return false
         };
         let mut b = Vec::<u8>::with_capacity(scanlen);
+        
+        // Fill up vector with something
+        for i in 0..scanlen {
+            let _ = i;
+            b.push(0);
+        }
+//         
         match f.read_exact(&mut b) {
             Ok(_) => {},
             Err(_) => return false
