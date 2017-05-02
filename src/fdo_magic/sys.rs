@@ -12,6 +12,9 @@ use fnv::FnvHashMap;
 use MIME;
 use super::MagicRule;
 
+/// Dummy cache type
+pub type Cache = bool;
+
 /// Preload alias list
 lazy_static! {
 	static ref ALIASES: FnvHashMap<MIME, MIME> = {
@@ -130,10 +133,11 @@ pub mod check {
     extern crate petgraph;
     use std::path::Path;
     use petgraph::prelude::*;
-    use fdo_magic;
+    use super::super::super::{CacheItem, fdo_magic};
 
     /// Test against all rules
-    pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
+    #[allow(unused_variables)]
+    pub fn from_u8(file: &[u8], mimetype: &str, cache: CacheItem) -> bool {
 		
 		// Get mimetype in case user provides alias
 		let mimetype = match super::ALIASES.get(mimetype) {
@@ -159,7 +163,8 @@ pub mod check {
     
     /// This only exists for the case of a direct match_filepath call
     /// and even then we could probably get rid of this...
-    pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
+    #[allow(unused_variables)]
+    pub fn from_filepath(filepath: &Path, mimetype: &str, cache: CacheItem) -> bool{
         use std::fs::File;
         use std::io::Read;
         
@@ -200,6 +205,6 @@ pub mod check {
             Err(_) => return false
         }
         
-        from_u8(b.as_slice(), mimetype)
+        from_u8(b.as_slice(), mimetype, cache)
     }
 }

@@ -83,11 +83,10 @@ fn main() {
         .collect();
     let is_ugly = args.is_present("ugly");
     let is_recursive = args.is_present("recursive");
-    let check_against: Vec<String> = args.values_of("match")
-        .unwrap()
-        .map(|x| x.to_string())
-        .collect();
-    println!("{:?}", check_against);
+    let check_against: Vec<String> = match args.values_of("match") {
+        Some(y) => {y.map(|x| x.to_string()).collect()}
+        None => Vec::<String>::new()
+    };
     
     let mut tw = TabWriter::new(vec![]);
     let (tx, rx) = mpsc::channel();

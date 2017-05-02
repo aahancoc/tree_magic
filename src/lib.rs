@@ -43,6 +43,7 @@
 #[macro_use] extern crate lazy_static;
 extern crate petgraph;
 extern crate fnv;
+extern crate parking_lot;
 
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
@@ -52,6 +53,8 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::fs::File;
 use std::path::Path;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 mod fdo_magic;
 mod basetype;
@@ -71,18 +74,22 @@ const TYPEORDER: [&'static str; 6] =
 ];
 
 struct CheckerStruct {
-    from_u8: fn(&[u8], &str) -> bool,
-    from_filepath: fn(&Path, &str) -> bool,
+    from_u8: fn(&[u8], &str, CacheItem) -> bool,
+    from_filepath: fn(&Path, &str, CacheItem) -> bool,
     get_supported: fn() -> Vec<MIME>,
     get_subclasses: fn() -> Vec<(MIME, MIME)>,
     get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
 }
 
+/// Maximum number of checkers supported with build config.
+/// TODO: Find any better way to do this!
+const CHECKERCOUNT: usize = 3;
+
 /// List of checker functions
 lazy_static! {
     static ref CHECKERS: Vec<CheckerStruct> = {vec![
-        #[cfg(not(feature="staticmime"))] // Disable sys checker when using staticmime
-        CheckerStruct{
+        // Disable sys checker when using staticmime
+        #[cfg(not(feature="staticmime"))] CheckerStruct{
             from_u8: fdo_magic::sys::check::from_u8,
             from_filepath: fdo_magic::sys::check::from_filepath,
             get_supported: fdo_magic::sys::init::get_supported,
@@ -120,7 +127,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    static ref ALIASES:  FnvHashMap<MIME, MIME> = {
+    static ref ALIASES: FnvHashMap<MIME, MIME> = {
         let mut out = FnvHashMap::<MIME, MIME>::default();
         for i in 0..CHECKERS.len() {
             out.extend((CHECKERS[i].get_aliaslist)());
@@ -128,6 +135,32 @@ lazy_static! {
         out
     };
 }
+
+/// Cache used for each checker for each file
+#[derive(Clone)]
+pub enum Cache {
+     #[cfg(not(feature="staticmime"))] FdoMagicSys(fdo_magic::sys::Cache),
+     FdoMagicBuiltin(fdo_magic::builtin::Cache),
+     Basetype(basetype::Cache)
+}
+type CacheItem = Arc<RwLock<Option<Cache>>>;
+type CacheContainer = Vec<CacheItem>; // Max number of supported checkers
+
+// I'd love to do this, but it needs unstable rust
+/*struct CacheStruct {
+    #[cfg(not(feature="staticmime"))] fdo_magic_sys: Option<fdo_magic::sys::Cache>,
+    fdo_magic_builtin: Option<fdo_magic::builtin::Cache>,
+    basetype: Option<basetype::Cache>
+}
+impl CacheStruct {
+    pub fn new() {
+        CacheStruct {
+            #[cfg(not(feature="staticmime"))] fdo_magic_sys: None,
+            fdo_magic_builtin: None,
+            basetype: None
+        }
+    }
+}*/
 
 /// Information about currently loaded MIME types
 ///
@@ -299,7 +332,8 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 fn typegraph_walker<T: Clone>(
     parentnode: NodeIndex,
     input: T,
-    matchfn: fn(&str, T) -> bool
+    cache: &CacheContainer,
+    matchfn: fn(&str, T, &CacheContainer) -> bool
 ) -> Option<MIME> {
 
     // Pull most common types towards top
@@ -318,11 +352,12 @@ fn typegraph_walker<T: Clone>(
     // Walk graph
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
-        let result = (matchfn)(mimetype, input.clone());
+        
+        let result = (matchfn)(mimetype, input.clone(), cache);
         match result {
             true => {
                 match typegraph_walker(
-                    childnode, input, matchfn
+                    childnode, input, cache, matchfn
                 ) {
                     Some(foundtype) => return Some(foundtype),
                     None => return Some(clonemime!(mimetype)),
@@ -353,11 +388,11 @@ fn get_alias(mimetype: &String) -> &String {
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs match_u8.
-fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
+fn match_u8_noalias(mimetype: &str, bytes: &[u8], cache: &CacheContainer) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
-        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype)
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype, cache[*y].clone())
     }
 }
 
@@ -382,7 +417,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
     
-    match_u8_noalias(x, bytes)
+    match_u8_noalias(x, bytes, &vec![CacheItem::default(); CHECKERCOUNT])
 }
 
 
@@ -416,7 +451,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// ```
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
-	typegraph_walker(parentnode, bytes, match_u8_noalias)
+	typegraph_walker(parentnode, bytes, &vec![CacheItem::default(); CHECKERCOUNT], match_u8_noalias)
 }
 
 /// Gets the type of a file from a byte stream.
@@ -443,11 +478,11 @@ pub fn from_u8(bytes: &[u8]) -> MIME
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs `match_u8`.
-fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
+fn match_filepath_noalias(mimetype: &str, filepath: &Path, cache: &CacheContainer) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
-        Some(y) => (CHECKERS[*y].from_filepath)(filepath, mimetype)
+        Some(y) => (CHECKERS[*y].from_filepath)(filepath, mimetype, cache[*y].clone())
     }
 }
 
@@ -473,7 +508,7 @@ pub fn match_filepath(mimetype: &str, filepath: &Path) -> bool
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
    
-    match_filepath_noalias(x, filepath)
+    match_filepath_noalias(x, filepath, &vec![CacheItem::default(); CHECKERCOUNT])
 }
 
 
@@ -514,11 +549,15 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     // Ensure it's at least a application/octet-stream
     if !match_filepath("application/octet-stream", filepath){
         // Check the other base types
-        return typegraph_walker(parentnode, filepath, match_filepath_noalias);
+        return typegraph_walker(parentnode, filepath, &vec![CacheItem::default(); CHECKERCOUNT], match_filepath_noalias);
     }
     
-    // Load the first 4K of file and parse as u8
+    // Load the first 2K of file and parse as u8
     // for batch processing like this
+    //
+    // TODO: Use cache to only get what we need to when we need to
+    // and then change code so that we keep calling this function
+    // when walking tree.
     let f = match File::open(filepath) {
         Ok(x) => x,
         Err(_) => return None // How?
@@ -542,7 +581,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
 /// ```rust
 /// use std::path::Path;
 ///
-/// // Get paath to a GIF file
+/// // Get path to a GIF file
 /// let path: &Path = Path::new("tests/image/gif");
 ///
 /// // Find the MIME type of the GIF

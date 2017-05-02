@@ -1,6 +1,6 @@
 [package]
 name = "tree_magic"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Aaron Hancock <aahancoc@umflint.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
 repository = "https://github.com/aahancoc/tree_magic/"
@@ -14,6 +14,7 @@ petgraph = "^0"
 nom = "^2"
 lazy_static = "^0.2"
 fnv = "^1"
+parking_lot = "^0.4"
 
 tabwriter = { version = "^1", optional = true }
 clap = { version = "^2", optional = true }
