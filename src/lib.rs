@@ -83,35 +83,37 @@ struct CheckerStruct {
 
 /// Maximum number of checkers supported with build config.
 /// TODO: Find any better way to do this!
+#[cfg(not(feature="staticmime"))]
 const CHECKERCOUNT: usize = 3;
+#[cfg(feature="staticmime")]
+const CHECKERCOUNT: usize = 2;
 
 /// List of checker functions
-lazy_static! {
-    static ref CHECKERS: Vec<CheckerStruct> = {vec![
-        // Disable sys checker when using staticmime
-        #[cfg(not(feature="staticmime"))] CheckerStruct{
-            from_u8: fdo_magic::sys::check::from_u8,
-            from_filepath: fdo_magic::sys::check::from_filepath,
-            get_supported: fdo_magic::sys::init::get_supported,
-            get_subclasses: fdo_magic::sys::init::get_subclasses,
-            get_aliaslist: fdo_magic::sys::init::get_aliaslist
-        },
-        CheckerStruct{
-            from_u8: fdo_magic::builtin::check::from_u8,
-            from_filepath: fdo_magic::builtin::check::from_filepath,
-            get_supported: fdo_magic::builtin::init::get_supported,
-            get_subclasses: fdo_magic::builtin::init::get_subclasses,
-            get_aliaslist: fdo_magic::builtin::init::get_aliaslist
-        },
-        CheckerStruct{
-            from_u8: basetype::check::from_u8,
-            from_filepath: basetype::check::from_filepath,
-            get_supported: basetype::init::get_supported,
-            get_subclasses: basetype::init::get_subclasses,
-            get_aliaslist: basetype::init::get_aliaslist
-        }
-    ]};
-}
+const CHECKERS: [CheckerStruct; CHECKERCOUNT] = 
+[
+    // Disable sys checker when using staticmime
+    #[cfg(not(feature="staticmime"))] CheckerStruct{
+        from_u8: fdo_magic::sys::check::from_u8,
+        from_filepath: fdo_magic::sys::check::from_filepath,
+        get_supported: fdo_magic::sys::init::get_supported,
+        get_subclasses: fdo_magic::sys::init::get_subclasses,
+        get_aliaslist: fdo_magic::sys::init::get_aliaslist
+    },
+    CheckerStruct{
+        from_u8: fdo_magic::builtin::check::from_u8,
+        from_filepath: fdo_magic::builtin::check::from_filepath,
+        get_supported: fdo_magic::builtin::init::get_supported,
+        get_subclasses: fdo_magic::builtin::init::get_subclasses,
+        get_aliaslist: fdo_magic::builtin::init::get_aliaslist
+    },
+    CheckerStruct{
+        from_u8: basetype::check::from_u8,
+        from_filepath: basetype::check::from_filepath,
+        get_supported: basetype::init::get_supported,
+        get_subclasses: basetype::init::get_subclasses,
+        get_aliaslist: basetype::init::get_aliaslist
+    }
+];
 
 /// Mappings between modules and supported mimes (by index in table above)
 lazy_static! {
