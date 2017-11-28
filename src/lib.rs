@@ -577,7 +577,8 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
 /// Gets the type of a file from a filepath.
 ///
 /// Does not look at file name or extension, just the contents.
-/// Returns MIME as string.
+/// Returns MIME as string wrapped in Some if a type matches, or
+/// None if the file is not found or cannot be opened.
 ///
 /// # Examples
 /// ```rust
@@ -588,16 +589,16 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
 ///
 /// // Find the MIME type of the GIF
 /// let result = tree_magic::from_filepath(path);
-/// assert_eq!(result, "image/gif");
+/// assert_eq!(result, Some("image/gif"));
 /// ```
-pub fn from_filepath(filepath: &Path) -> MIME {
+pub fn from_filepath(filepath: &Path) -> Option<MIME> {
 
     let node = match TYPE.graph.externals(Incoming).next() {
         Some(foundnode) => foundnode,
         None => panic!("No filetype definitions are loaded.")
     };
     
-    from_filepath_node(node, filepath).unwrap()
+    from_filepath_node(node, filepath)
 }
 
 /// Determines if a MIME is an alias of another MIME
