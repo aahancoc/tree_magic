@@ -10,7 +10,7 @@ keywords = ["mime", "filesystem", "media-types"]
 license = "MIT"
 
 [dependencies]
-petgraph = "^0"
+petgraph = "^0.4"
 nom = "^2"
 lazy_static = "^0.2"
 fnv = "^1"

@@ -53,5 +53,25 @@ mod match_u8 {
         assert!(tree_magic::match_u8("text/plain", include_bytes!("text/plain")));
     }
     
-
+	// Audio tests
+	#[test]
+    fn audio_flac() {
+        assert!(tree_magic::match_u8("audio/flac", include_bytes!("audio/flac")));
+    }
+	#[test]
+    fn audio_mpeg() {
+        assert!(tree_magic::match_u8("audio/mpeg", include_bytes!("audio/mpeg")));
+    }
+	#[test]
+    fn audio_ogg() {
+        assert!(tree_magic::match_u8("audio/ogg", include_bytes!("audio/ogg")));
+    }
+	#[test]
+    fn audio_opus() {
+        assert!(tree_magic::match_u8("audio/opus", include_bytes!("audio/opus")));
+    }
+	#[test]
+    fn audio_wav() {
+        assert!(tree_magic::match_u8("audio/wav", include_bytes!("audio/wav")));
+    }
 }

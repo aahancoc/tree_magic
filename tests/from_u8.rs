@@ -96,4 +96,44 @@ mod from_u8 {
         );
     }
 
+	// Audio tests
+	#[test]
+	fn audio_flac() {
+		assert_eq!(
+            tree_magic::from_u8(include_bytes!("audio/flac")),
+            convmime!("audio/flac")
+        );
+	}
+	
+	#[test]
+	fn audio_mpeg() {
+		assert_eq!(
+            tree_magic::from_u8(include_bytes!("audio/mpeg")),
+            convmime!("audio/mpeg")
+        );
+	}
+	
+	#[test]
+	fn audio_ogg() {
+		assert_eq!(
+            tree_magic::from_u8(include_bytes!("audio/ogg")),
+            convmime!("audio/ogg")
+        );
+	}
+	
+	#[test]
+	fn audio_opus() {
+		assert_eq!(
+            tree_magic::from_u8(include_bytes!("audio/opus")),
+            convmime!("audio/opus")
+        );
+	}
+	
+	#[test]
+	fn audio_wav() {
+		assert_eq!(
+            tree_magic::from_u8(include_bytes!("audio/wav")),
+            convmime!("audio/wav")
+        );
+	}
 }
