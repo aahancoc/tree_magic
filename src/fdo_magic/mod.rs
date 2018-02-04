@@ -5,8 +5,6 @@ extern crate petgraph;
 extern crate fnv;
 
 pub mod builtin;
-#[cfg(not(feature="staticmime"))]
-pub mod sys;
 
 // We can't have staticmime and sys_fdo_magic enabled
 // because we can't statically refer to a file on disk.

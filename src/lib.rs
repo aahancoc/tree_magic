@@ -13,8 +13,6 @@
 //!   between 5,000ns and 100,000ns to find a MIME type.)
 //! - Check if a file *is* a certain type.
 //! - Handles aliases (ex: `application/zip` vs `application/x-zip-compressed`)
-//! - Uses system [FreeDesktop.org magic files](https://specifications.freedesktop.org/shared-mime-info-spec/shared-mime-info-spec-latest.html) 
-//!   on Linux systems, and built-in magic file on Windows and macOS.
 //! - Can delegate different file types to different "checkers", reducing false positives
 //!   by choosing a different method of attack.
 //!
@@ -85,22 +83,12 @@ struct CheckerStruct {
 
 /// Maximum number of checkers supported with build config.
 /// TODO: Find any better way to do this!
-#[cfg(not(feature="staticmime"))]
-const CHECKERCOUNT: usize = 3;
-#[cfg(feature="staticmime")]
 const CHECKERCOUNT: usize = 2;
 
 /// List of checker functions
 const CHECKERS: [CheckerStruct; CHECKERCOUNT] = 
 [
     // Disable sys checker when using staticmime
-    #[cfg(not(feature="staticmime"))] CheckerStruct{
-        from_u8: fdo_magic::sys::check::from_u8,
-        from_filepath: fdo_magic::sys::check::from_filepath,
-        get_supported: fdo_magic::sys::init::get_supported,
-        get_subclasses: fdo_magic::sys::init::get_subclasses,
-        get_aliaslist: fdo_magic::sys::init::get_aliaslist
-    },
     CheckerStruct{
         from_u8: fdo_magic::builtin::check::from_u8,
         from_filepath: fdo_magic::builtin::check::from_filepath,
@@ -152,7 +140,6 @@ lazy_static! {
 #[derive(Clone)]
 pub enum Cache {
     FileCache(Vec<u8>),
-    #[cfg(not(feature="staticmime"))] FdoMagicSys(fdo_magic::sys::Cache),
     FdoMagicBuiltin(fdo_magic::builtin::Cache),
     Basetype(basetype::Cache)
 }
