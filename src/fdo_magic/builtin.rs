@@ -113,11 +113,13 @@ pub mod check {
     use std::path::Path;
     use petgraph::prelude::*;
     use fdo_magic;
-    use super::super::super::{CacheItem};
+    use super::super::super::{CacheItem, slurp_to_cache};
     
     /// Test against all rules
     #[allow(unused_variables)]
-    pub fn from_u8(file: &[u8], mimetype: &str, cache: CacheItem) -> bool {
+    pub fn from_u8(
+        file: &[u8], mimetype: &str, cache: &CacheItem, filecache: &CacheItem
+    ) -> bool {
     
         // Get magic ruleset
         let graph = match super::ALLRULES.get(mimetype) {
@@ -138,10 +140,9 @@ pub mod check {
     /// This only exists for the case of a direct match_filepath call
     /// and even then we could probably get rid of this...
     #[allow(unused_variables)]
-    pub fn from_filepath(filepath: &Path, mimetype: &str, cache: CacheItem) -> bool{
-        use std::fs::File;
-        use std::io::Read;
-        
+    pub fn from_filepath(
+        filepath: &Path, mimetype: &str, cache: &CacheItem, filecache: &CacheItem
+    ) -> bool{
         // Get magic ruleset
         let magic_rules = match super::ALLRULES.get(mimetype) {
             Some(item) => item,
@@ -162,23 +163,11 @@ pub mod check {
             }
         }
         
-        let mut f = match File::open(filepath) {
+        let b = match slurp_to_cache(filepath, filecache, scanlen) {
             Ok(x) => x,
             Err(_) => return false
         };
-        let mut b = Vec::<u8>::with_capacity(scanlen);
         
-        // Fill up vector with something
-        for i in 0..scanlen {
-            let _ = i;
-            b.push(0);
-        }
-        
-        match f.read_exact(&mut b) {
-            Ok(_) => {},
-            Err(_) => return false
-        }
-        
-        from_u8(b.as_slice(), mimetype, cache)
+        from_u8(b.as_slice(), mimetype, cache, &CacheItem::default())
     }
 }

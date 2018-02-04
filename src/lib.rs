@@ -63,6 +63,7 @@ mod basetype;
 #[cfg(not(feature="staticmime"))] type MIME = String;
 
 /// Check these types first
+/// TODO: Poll these from the checkers? Feels a bit arbitrary
 const TYPEORDER: [&'static str; 6] =
 [
 	"image/png",
@@ -73,9 +74,10 @@ const TYPEORDER: [&'static str; 6] =
 	"application/pdf"
 ];
 
+/// Struct used to define checker functions for the sake of boilerplate reduction
 struct CheckerStruct {
-    from_u8: fn(&[u8], &str, CacheItem) -> bool,
-    from_filepath: fn(&Path, &str, CacheItem) -> bool,
+    from_u8: fn(&[u8], &str, &CacheItem, &CacheItem) -> bool,
+    from_filepath: fn(&Path, &str, &CacheItem, &CacheItem) -> bool,
     get_supported: fn() -> Vec<MIME>,
     get_subclasses: fn() -> Vec<(MIME, MIME)>,
     get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
@@ -139,16 +141,25 @@ lazy_static! {
 }
 
 /// Cache used for each checker for each file
+///
+/// This is sad and messy. More or less, it's a vector of possible cache types,
+/// one for each checker. The checker defines the cache types, and everything
+/// should hopefully be peachy.
+///
+/// Element 0 is the file cache, a Vec<u8>. This gets filled as more bytes
+/// need to be loaded. Elements 1+ correspond to each checker, as ordered
+/// in the CHECKERS array above.
 #[derive(Clone)]
 pub enum Cache {
-     #[cfg(not(feature="staticmime"))] FdoMagicSys(fdo_magic::sys::Cache),
-     FdoMagicBuiltin(fdo_magic::builtin::Cache),
-     Basetype(basetype::Cache)
+    FileCache(Vec<u8>),
+    #[cfg(not(feature="staticmime"))] FdoMagicSys(fdo_magic::sys::Cache),
+    FdoMagicBuiltin(fdo_magic::builtin::Cache),
+    Basetype(basetype::Cache)
 }
 type CacheItem = Arc<RwLock<Option<Cache>>>;
 type CacheContainer = Vec<CacheItem>; // Max number of supported checkers
 
-// I'd love to do this, but it needs unstable rust
+// I'd really love to do this, but it needs unstable rust
 /*struct CacheStruct {
     #[cfg(not(feature="staticmime"))] fdo_magic_sys: Option<fdo_magic::sys::Cache>,
     fdo_magic_builtin: Option<fdo_magic::builtin::Cache>,
@@ -394,7 +405,7 @@ fn match_u8_noalias(mimetype: &str, bytes: &[u8], cache: &CacheContainer) -> boo
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
-        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype, cache[*y].clone())
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype, &cache[*y + 1], &cache[0])
     }
 }
 
@@ -418,8 +429,12 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
+    let mut cache = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
+    for _ in 0..(CHECKERCOUNT + 1) {
+        cache.push(CacheItem::default());
+    }
     
-    match_u8_noalias(x, bytes, &vec![CacheItem::default(); CHECKERCOUNT])
+    match_u8_noalias(x, bytes, &cache)
 }
 
 
@@ -453,7 +468,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// ```
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
-	typegraph_walker(parentnode, bytes, &vec![CacheItem::default(); CHECKERCOUNT], match_u8_noalias)
+	typegraph_walker(parentnode, bytes, &vec![CacheItem::default(); CHECKERCOUNT + 1], match_u8_noalias)
 }
 
 /// Gets the type of a file from a byte stream.
@@ -484,7 +499,12 @@ fn match_filepath_noalias(mimetype: &str, filepath: &Path, cache: &CacheContaine
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
-        Some(y) => (CHECKERS[*y].from_filepath)(filepath, mimetype, cache[*y].clone())
+        Some(y) => {
+            let ref checkercache = cache[*y + 1];
+            let ref filecache = cache[0];
+            //assert_eq!(0, std::sync::Arc::strong_count(&filecache));
+            (CHECKERS[*y].from_filepath)(filepath, mimetype, checkercache, filecache)
+        }
     }
 }
 
@@ -509,8 +529,13 @@ pub fn match_filepath(mimetype: &str, filepath: &Path) -> bool
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
+    let mut cache_collection = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
+    
+    for _ in 0..(CHECKERCOUNT + 1) {
+        cache_collection.push(CacheItem::default());
+    }
    
-    match_filepath_noalias(x, filepath, &vec![CacheItem::default(); CHECKERCOUNT])
+    match_filepath_noalias(x, filepath, &cache_collection)
 }
 
 
@@ -548,10 +573,15 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     // We're actually just going to thunk this down to a u8
     // unless we're checking via basetype for speed reasons.
     
+    let mut cache = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
+    for _ in 0..(CHECKERCOUNT + 1) {
+        cache.push(CacheItem::default());
+    }
+    
     // Ensure it's at least a application/octet-stream
     if !match_filepath("application/octet-stream", filepath){
         // Check the other base types
-        return typegraph_walker(parentnode, filepath, &vec![CacheItem::default(); CHECKERCOUNT], match_filepath_noalias);
+        return typegraph_walker(parentnode, filepath, &cache, match_filepath_noalias);
     }
     
     // Load the first 2K of file and parse as u8
@@ -560,7 +590,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     // TODO: Use cache to only get what we need to when we need to
     // and then change code so that we keep calling this function
     // when walking tree.
-    let f = match File::open(filepath) {
+    /*let f = match File::open(filepath) {
         Ok(x) => x,
         Err(_) => return None // How?
     };
@@ -569,7 +599,14 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     match r.take(2048).read_to_end(&mut b) {
         Ok(_) => {},
         Err(_) => return None // Also how?
-    }
+    }*/
+    
+
+    let ref filecache = cache[0];
+    let b = match slurp_to_cache(filepath, filecache, 2048){
+        Ok(x) => x,
+        Err(_) => return None
+    };
     
     from_u8_node(parentnode, b.as_slice())
 }
@@ -621,4 +658,60 @@ pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
     return x == mime2 || y == mime1;
     #[cfg(not(feature="staticmime"))]
     return *x == mime2 || *y == mime1;
+}
+
+/// Slurps the given number of bytes from a file to a FileCache
+/// and returns those bytes as a Vec<u8> for convienence.
+fn slurp_to_cache(filepath: &Path, filecache: &CacheItem, bytecount: usize) -> Result<Vec<u8>, std::io::Error> {
+    use std::io::prelude::*;
+    use std::fs::File;
+    use std::ops::Deref;
+
+    let ref lock = *filecache.read();
+    let x = lock.deref();
+    let mut b = Vec::<u8>::with_capacity(bytecount);
+    let mut should_copy: bool = false;
+
+    match *x {
+        None => {
+            // Slurp up bytes
+            let f = File::open(filepath)?;
+            f.take(bytecount as u64).read_to_end(&mut b)?;
+            should_copy = true;
+        },
+        Some (ref y) => match *y {
+            Cache::FileCache(ref a) => {
+                if a.len() < bytecount {
+                    let count = bytecount - a.len();
+                    
+                    let mut f = File::open(filepath)?;
+                    f.seek(std::io::SeekFrom::Start(a.len() as u64))?;
+                    f.take(count as u64).read_to_end(&mut b)?;
+                    should_copy = true;
+                }
+            },
+            _ => panic!("Invalid type for FileCache!")
+        }
+    }
+
+    drop(x);
+    drop(lock);
+    //assert_eq!(0, std::sync::Arc::strong_count(&filecache));
+
+    // THIS SECTION DEADLOCKS ALWAYS, because there is a rougue handle somewhere
+    // that write() is forever stuck waiting for.
+    if should_copy {
+        let ref mut out = filecache.write();
+        match out.clone().unwrap() {
+            Cache::FileCache(ref mut a) => {a.append(&mut b);},
+            _ => {panic!("Could not read file?")}
+        }
+    }
+    
+    let ref lock = *filecache.read();
+    let x = lock.deref().clone();
+    match x.unwrap() {
+        Cache::FileCache(a) => Ok(a),
+        _ => {panic!("Could not read file?")}
+    }
 }
