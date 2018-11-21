@@ -8,6 +8,7 @@ documentation = "https://docs.rs/tree_magic/"
 readme = "README.md"
 keywords = ["mime", "filesystem", "media-types"]
 license = "MIT"
+exclude = ["tests/*", "benches/*"]
 
 [dependencies]
 petgraph = "^0.4"
