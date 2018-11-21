@@ -113,27 +113,4 @@ mod from_u8 {
         );
 	}
 	
-	#[test]
-	fn audio_ogg() {
-		assert_eq!(
-            tree_magic::from_u8(include_bytes!("audio/ogg")),
-            convmime!("audio/ogg")
-        );
-	}
-	
-	#[test]
-	fn audio_opus() {
-		assert_eq!(
-            tree_magic::from_u8(include_bytes!("audio/opus")),
-            convmime!("audio/opus")
-        );
-	}
-	
-	#[test]
-	fn audio_wav() {
-		assert_eq!(
-            tree_magic::from_u8(include_bytes!("audio/wav")),
-            convmime!("audio/wav")
-        );
-	}
 }
