@@ -112,14 +112,12 @@ pub mod check {
     extern crate petgraph;
     use std::path::Path;
     use petgraph::prelude::*;
+    use super::super::super::{read_bytes};
     use fdo_magic;
-    use super::super::super::{CacheItem, slurp_to_cache};
     
     /// Test against all rules
     #[allow(unused_variables)]
-    pub fn from_u8(
-        file: &[u8], mimetype: &str, cache: &CacheItem, filecache: &CacheItem
-    ) -> bool {
+    pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
     
         // Get magic ruleset
         let graph = match super::ALLRULES.get(mimetype) {
@@ -140,9 +138,7 @@ pub mod check {
     /// This only exists for the case of a direct match_filepath call
     /// and even then we could probably get rid of this...
     #[allow(unused_variables)]
-    pub fn from_filepath(
-        filepath: &Path, mimetype: &str, cache: &CacheItem, filecache: &CacheItem
-    ) -> bool{
+    pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
         // Get magic ruleset
         let magic_rules = match super::ALLRULES.get(mimetype) {
             Some(item) => item,
@@ -163,11 +159,11 @@ pub mod check {
             }
         }
         
-        let b = match slurp_to_cache(filepath, filecache, scanlen) {
+        let b = match read_bytes(filepath, scanlen) {
             Ok(x) => x,
             Err(_) => return false
         };
         
-        from_u8(b.as_slice(), mimetype, cache, &CacheItem::default())
+        from_u8(b.as_slice(), mimetype)
     }
 }

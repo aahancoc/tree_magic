@@ -19,8 +19,6 @@
 //! # Feature flags
 //! `cli`:        Enable building of `tmagic` binary
 //!
-//! `staticmime`: Change output of all `from_*` functions from `String` to `&'static str`.
-//!               Disables ability to load system magic files. Slightly faster.
 //! # Example
 //! ```rust
 //! extern crate tree_magic;
@@ -43,20 +41,16 @@
 #[macro_use] extern crate lazy_static;
 extern crate petgraph;
 extern crate fnv;
-extern crate parking_lot;
 
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use std::path::Path;
-use parking_lot::RwLock;
-use std::sync::Arc;
 
 mod fdo_magic;
 mod basetype;
 
-#[cfg(feature="staticmime")] type MIME = &'static str;
-#[cfg(not(feature="staticmime"))] type MIME = String;
+type MIME = String;
 
 /// Check these types first
 /// TODO: Poll these from the checkers? Feels a bit arbitrary
@@ -72,8 +66,8 @@ const TYPEORDER: [&'static str; 6] =
 
 /// Struct used to define checker functions for the sake of boilerplate reduction
 struct CheckerStruct {
-    from_u8: fn(&[u8], &str, &CacheItem, &CacheItem) -> bool,
-    from_filepath: fn(&Path, &str, &CacheItem, &CacheItem) -> bool,
+    from_u8: fn(&[u8], &str) -> bool,
+    from_filepath: fn(&Path, &str) -> bool,
     get_supported: fn() -> Vec<MIME>,
     get_subclasses: fn() -> Vec<(MIME, MIME)>,
     get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
@@ -86,7 +80,7 @@ const CHECKERCOUNT: usize = 2;
 /// List of checker functions
 const CHECKERS: [CheckerStruct; CHECKERCOUNT] = 
 [
-    // Disable sys checker when using staticmime
+    // fdo_magic
     CheckerStruct{
         from_u8: fdo_magic::builtin::check::from_u8,
         from_filepath: fdo_magic::builtin::check::from_filepath,
@@ -94,6 +88,7 @@ const CHECKERS: [CheckerStruct; CHECKERCOUNT] =
         get_subclasses: fdo_magic::builtin::init::get_subclasses,
         get_aliaslist: fdo_magic::builtin::init::get_aliaslist
     },
+    // basetype
     CheckerStruct{
         from_u8: basetype::check::from_u8,
         from_filepath: basetype::check::from_filepath,
@@ -126,40 +121,6 @@ lazy_static! {
     };
 }
 
-/// Cache used for each checker for each file
-///
-/// This is sad and messy. More or less, it's a vector of possible cache types,
-/// one for each checker. The checker defines the cache types, and everything
-/// should hopefully be peachy.
-///
-/// Element 0 is the file cache, a Vec<u8>. This gets filled as more bytes
-/// need to be loaded. Elements 1+ correspond to each checker, as ordered
-/// in the CHECKERS array above.
-#[derive(Clone)]
-pub enum Cache {
-    FileCache(Vec<u8>),
-    FdoMagicBuiltin(fdo_magic::builtin::Cache),
-    Basetype(basetype::Cache)
-}
-type CacheItem = Arc<RwLock<Option<Cache>>>;
-type CacheContainer = Vec<CacheItem>; // Max number of supported checkers
-
-// I'd really love to do this, but it needs unstable rust
-/*struct CacheStruct {
-    #[cfg(not(feature="staticmime"))] fdo_magic_sys: Option<fdo_magic::sys::Cache>,
-    fdo_magic_builtin: Option<fdo_magic::builtin::Cache>,
-    basetype: Option<basetype::Cache>
-}
-impl CacheStruct {
-    pub fn new() {
-        CacheStruct {
-            #[cfg(not(feature="staticmime"))] fdo_magic_sys: None,
-            fdo_magic_builtin: None,
-            basetype: None
-        }
-    }
-}*/
-
 /// Information about currently loaded MIME types
 ///
 /// The `graph` contains subclass relations between all given mimes.
@@ -186,33 +147,18 @@ lazy_static! {
 }
 
 /// Convert a &str to a MIME
-#[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
     ($x:expr) => {$x.to_string()}
 }
-#[cfg(feature="staticmime")]
-macro_rules! convmime {
-    ($x:expr) => {$x}
-}
 
 /// Convert a MIME to a &str
-#[cfg(not(feature="staticmime"))]
 macro_rules! unconvmime {
     ($x:expr) => {$x.as_str()}
 }
-#[cfg(feature="staticmime")]
-macro_rules! unconvmime {
-    ($x:expr) => {$x}
-}
 
 /// Clone a MIME
-#[cfg(not(feature="staticmime"))]
 macro_rules! clonemime {
     ($x:expr) => {$x.clone()}
-}
-#[cfg(feature="staticmime")]
-macro_rules! clonemime {
-    ($x:expr) => {$x}
 }
 
 // Initialize filetype graph
@@ -330,8 +276,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 fn typegraph_walker<T: Clone>(
     parentnode: NodeIndex,
     input: T,
-    cache: &CacheContainer,
-    matchfn: fn(&str, T, &CacheContainer) -> bool
+    matchfn: fn(&str, T) -> bool
 ) -> Option<MIME> {
 
     // Pull most common types towards top
@@ -351,12 +296,10 @@ fn typegraph_walker<T: Clone>(
     for childnode in children {
         let ref mimetype = TYPE.graph[childnode];
         
-        let result = (matchfn)(mimetype, input.clone(), cache);
+        let result = (matchfn)(mimetype, input.clone());
         match result {
             true => {
-                match typegraph_walker(
-                    childnode, input, cache, matchfn
-                ) {
+                match typegraph_walker(childnode, input, matchfn) {
                     Some(foundtype) => return Some(foundtype),
                     None => return Some(clonemime!(mimetype)),
                 }
@@ -369,14 +312,6 @@ fn typegraph_walker<T: Clone>(
 }
 
 /// Transforms an alias into it's real type
-#[cfg(feature="staticmime")]
-fn get_alias(mimetype: &str) -> &str {
-    match ALIASES.get(mimetype) {
-        Some(x) => x,
-        None => mimetype
-    }
-}
-#[cfg(not(feature="staticmime"))]
 fn get_alias(mimetype: &String) -> &String {
     match ALIASES.get(mimetype) {
         Some(x) => x,
@@ -386,11 +321,11 @@ fn get_alias(mimetype: &String) -> &String {
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs match_u8.
-fn match_u8_noalias(mimetype: &str, bytes: &[u8], cache: &CacheContainer) -> bool
+fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
-        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype, &cache[*y + 1], &cache[0])
+        Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype)
     }
 }
 
@@ -414,12 +349,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
-    let mut cache = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
-    for _ in 0..(CHECKERCOUNT + 1) {
-        cache.push(CacheItem::default());
-    }
-    
-    match_u8_noalias(x, bytes, &cache)
+    match_u8_noalias(x, bytes)
 }
 
 
@@ -453,7 +383,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// ```
 pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 {
-	typegraph_walker(parentnode, bytes, &vec![CacheItem::default(); CHECKERCOUNT + 1], match_u8_noalias)
+	typegraph_walker(parentnode, bytes, match_u8_noalias)
 }
 
 /// Gets the type of a file from a byte stream.
@@ -480,15 +410,12 @@ pub fn from_u8(bytes: &[u8]) -> MIME
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs `match_u8`.
-fn match_filepath_noalias(mimetype: &str, filepath: &Path, cache: &CacheContainer) -> bool
+fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
 {
     match CHECKER_SUPPORT.get(mimetype) {
         None => {false},
         Some(y) => {
-            let ref checkercache = cache[*y + 1];
-            let ref filecache = cache[0];
-            //assert_eq!(0, std::sync::Arc::strong_count(&filecache));
-            (CHECKERS[*y].from_filepath)(filepath, mimetype, checkercache, filecache)
+            (CHECKERS[*y].from_filepath)(filepath, mimetype)
         }
     }
 }
@@ -514,13 +441,7 @@ pub fn match_filepath(mimetype: &str, filepath: &Path) -> bool
     // Transform alias if needed
     let oldmime = convmime!(mimetype);
     let x = unconvmime!(get_alias(&oldmime));
-    let mut cache_collection = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
-    
-    for _ in 0..(CHECKERCOUNT + 1) {
-        cache_collection.push(CacheItem::default());
-    }
-   
-    match_filepath_noalias(x, filepath, &cache_collection)
+    match_filepath_noalias(x, filepath)
 }
 
 
@@ -558,37 +479,16 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     // We're actually just going to thunk this down to a u8
     // unless we're checking via basetype for speed reasons.
     
-    let mut cache = Vec::<CacheItem>::with_capacity(CHECKERCOUNT + 1);
-    for _ in 0..(CHECKERCOUNT + 1) {
-        cache.push(CacheItem::default());
-    }
-    
     // Ensure it's at least a application/octet-stream
     if !match_filepath("application/octet-stream", filepath){
         // Check the other base types
-        return typegraph_walker(parentnode, filepath, &cache, match_filepath_noalias);
+        return typegraph_walker(parentnode, filepath, match_filepath_noalias);
     }
     
     // Load the first 2K of file and parse as u8
     // for batch processing like this
-    //
-    // TODO: Use cache to only get what we need to when we need to
-    // and then change code so that we keep calling this function
-    // when walking tree.
-    /*let f = match File::open(filepath) {
-        Ok(x) => x,
-        Err(_) => return None // How?
-    };
-    let r = BufReader::new(f);
-    let mut b = Vec::<u8>::new();
-    match r.take(2048).read_to_end(&mut b) {
-        Ok(_) => {},
-        Err(_) => return None // Also how?
-    }*/
-    
 
-    let ref filecache = cache[0];
-    let b = match slurp_to_cache(filepath, filecache, 2048){
+    let b = match read_bytes(filepath, 2048) {
         Ok(x) => x,
         Err(_) => return None
     };
@@ -627,8 +527,6 @@ pub fn from_filepath(filepath: &Path) -> Option<MIME> {
 ///
 /// If this returns true, that means the two MIME types are equivalent.
 /// If this returns false, either one of the MIME types are missing, or they are different.
-/// If you're using the `staticmime` feature flag, input is a &'static str.
-/// Otherwise it is a String.
 ///
 /// # Examples
 /// ```
@@ -640,64 +538,16 @@ pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
     let x = get_alias(&mime1);
     let y = get_alias(&mime2);
     
-    #[cfg(feature="staticmime")]
-    return x == mime2 || y == mime1;
-    #[cfg(not(feature="staticmime"))]
     return *x == mime2 || *y == mime1;
 }
 
-/// Slurps the given number of bytes from a file to a FileCache
-/// and returns those bytes as a Vec<u8> for convienence.
-fn slurp_to_cache(filepath: &Path, filecache: &CacheItem, bytecount: usize) -> Result<Vec<u8>, std::io::Error> {
+/// Reads the given number of bytes from a file
+fn read_bytes(filepath: &Path, bytecount: usize) -> Result<Vec<u8>, std::io::Error> {
     use std::io::prelude::*;
     use std::fs::File;
-    use std::ops::Deref;
 
-    let ref lock = *filecache.read();
-    let x = lock.deref();
     let mut b = Vec::<u8>::with_capacity(bytecount);
-    let mut should_copy: bool = false;
-
-    match *x {
-        None => {
-            // Slurp up bytes
-            let f = File::open(filepath)?;
-            f.take(bytecount as u64).read_to_end(&mut b)?;
-            should_copy = true;
-        },
-        Some (ref y) => match *y {
-            Cache::FileCache(ref a) => {
-                if a.len() < bytecount {
-                    let count = bytecount - a.len();
-                    
-                    let mut f = File::open(filepath)?;
-                    f.seek(std::io::SeekFrom::Start(a.len() as u64))?;
-                    f.take(count as u64).read_to_end(&mut b)?;
-                    should_copy = true;
-                }
-            },
-            _ => panic!("Invalid type for FileCache!")
-        }
-    }
-
-    drop(x);
-    drop(lock);
-    //assert_eq!(0, std::sync::Arc::strong_count(&filecache));
-
-    // THIS SECTION DEADLOCKS ALWAYS, because there is a rougue handle somewhere
-    // that write() is forever stuck waiting for.
-    if should_copy {
-        let ref mut out = filecache.write();
-        match out.clone().unwrap() {
-            Cache::FileCache(ref mut a) => {a.append(&mut b);},
-            _ => {panic!("Could not read file?")}
-        }
-    }
-    
-    let ref lock = *filecache.read();
-    let x = lock.deref().clone();
-    match x.unwrap() {
-        Cache::FileCache(a) => Ok(a),
-        _ => {panic!("Could not read file?")}
-    }
+    let f = File::open(filepath)?;
+    f.take(bytecount as u64).read_to_end(&mut b)?;
+    Ok(b)
 }

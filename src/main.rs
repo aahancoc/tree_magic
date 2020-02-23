@@ -36,13 +36,8 @@ use std::path::PathBuf;
 use walkdir::{WalkDir};
 use scoped_threadpool::Pool;
 
-#[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
     ($x:expr) => {$x.to_string()}
-}
-#[cfg(feature="staticmime")]
-macro_rules! convmime {
-    ($x:expr) => {$x}
 }
 
 fn main() {

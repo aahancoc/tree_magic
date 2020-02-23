@@ -15,7 +15,6 @@ petgraph = "^0.5"
 nom = "^3"
 lazy_static = "^1.4"
 fnv = "^1"
-parking_lot = "^0.10"
 
 tabwriter = { version = "^1", optional = true }
 clap = { version = "^2", optional = true }
@@ -25,7 +24,6 @@ num_cpus = { version = "^1", optional = true }
 
 [features]
 cli = ["clap", "tabwriter", "scoped_threadpool", "walkdir", "num_cpus"]
-staticmime = []     # Use &'static str for output insead of String. (disabled for now)
 default = []
 
 [lib]

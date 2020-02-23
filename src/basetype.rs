@@ -10,11 +10,8 @@ const TYPES: [&'static str; 5] =
     "application/octet-stream"
 ];
 
-/// Hold metadata in cache
-pub type Cache = std::fs::Metadata;
-
-pub mod init {
-
+pub mod init
+{
     extern crate fnv;
     use fnv::FnvHashMap;
     use MIME;
@@ -64,9 +61,8 @@ pub mod init {
 pub mod check {
 
     extern crate std;
-    extern crate parking_lot;
     use std::path::Path;
-    use super::super::{Cache, CacheItem, slurp_to_cache};
+    use super::super::{read_bytes};
     
     /// If there are any null bytes, return False. Otherwise return True.
     fn is_text_plain_from_u8(b: &[u8]) -> bool {
@@ -74,9 +70,9 @@ pub mod check {
     }
 
     // TODO: Hoist the main logic here somewhere else. This'll get redundant fast!
-    fn is_text_plain_from_filepath(filepath: &Path, filecache: &CacheItem) -> bool {
-    
-        let b = match slurp_to_cache(filepath, filecache, 512) {
+    fn is_text_plain_from_filepath(filepath: &Path) -> bool
+    {
+        let b = match read_bytes(filepath, 512) {
             Ok(x) => x,
             Err(_) => return false
         };
@@ -84,9 +80,7 @@ pub mod check {
     }
     
     #[allow(unused_variables)]
-    pub fn from_u8(
-        b: &[u8], mimetype: &str, cache: &CacheItem, filecache: &CacheItem
-    ) -> bool {
+    pub fn from_u8(b: &[u8], mimetype: &str) -> bool {
         if mimetype == "application/octet-stream" || mimetype == "all/allfiles" {
             // Both of these are the case if we have a bytestream at all
             return true;
@@ -98,32 +92,22 @@ pub mod check {
         }
     }
     
-    pub fn from_filepath(
-        filepath: &Path, mimetype: &str, cache: &CacheItem, filecache: &CacheItem
-    ) -> bool{
+    pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
     
         use std::fs;
-        //assert_eq!(0, std::sync::Arc::strong_count(&filecache));
         
-        if cache.read().is_none() {
-            // Being bad with error handling here,
-            // but if you can't open it it's probably not a file.
-            let mut meta = cache.write();
-            *meta = match fs::metadata(filepath) {
-                Ok(x) => Some(Cache::Basetype(x)),
-                Err(_) => {return false;}
-            };
-        }
-        let meta = match cache.read().clone().unwrap() {
-            Cache::Basetype(x) => {x},
-            _ => {panic!("Invalid cache type (must be basetype)!");}
+        // Being bad with error handling here,
+        // but if you can't open it it's probably not a file.
+        let meta = match fs::metadata(filepath) {
+            Ok(x) => x,
+            Err(_) => {return false;}
         };
         
         match mimetype {
             "all/all" => return true,
             "all/allfiles" | "application/octet-stream" => return meta.is_file(),
             "inode/directory" => return meta.is_dir(),
-            "text/plain" => return is_text_plain_from_filepath(filepath, filecache),
+            "text/plain" => return is_text_plain_from_filepath(filepath),
             _ => return false
         }
     }
