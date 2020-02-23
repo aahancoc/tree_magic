@@ -1,3 +1,8 @@
+# 0.2.2
+
+Updated most dependencies to their latest version. nom is still stuck at 0.3.x
+due to some difficulties in porting to a newer version.
+
 # 0.2.1
 
 Incorporated fix by Bram Sanders to prevent panic on non-existent file.
@@ -25,7 +30,6 @@ Major changes, front-end and back.
 - *Changed public interface*: Added `from_u8` export function
 - *Changed public interface*: Changed len argument for `u8` functions from `u32` to `usize`
 - Minor speed improvements in `fdo_magic` checker
-
  
 # 0.1.0
  
