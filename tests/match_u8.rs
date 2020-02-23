@@ -67,10 +67,6 @@ mod match_u8 {
         assert!(tree_magic::match_u8("audio/ogg", include_bytes!("audio/ogg")));
     }
 	#[test]
-    fn audio_opus() {
-        assert!(tree_magic::match_u8("audio/opus", include_bytes!("audio/opus")));
-    }
-	#[test]
     fn audio_wav() {
         assert!(tree_magic::match_u8("audio/wav", include_bytes!("audio/wav")));
     }

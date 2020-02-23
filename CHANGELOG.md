@@ -1,3 +1,7 @@
+# 0.2.1
+
+Incorporated fix by Bram Sanders to prevent panic on non-existent file.
+
 # 0.2.0
 
 Major changes, front-end and back.
