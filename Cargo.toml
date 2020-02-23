@@ -1,7 +1,7 @@
 [package]
 name = "tree_magic"
-version = "0.2.1"
-authors = ["A. Hancock <aahancoc@umich.edu>"]
+version = "0.2.2"
+authors = ["Allison Hancock <aahancoc@umich.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
 repository = "https://github.com/aahancoc/tree_magic/"
 documentation = "https://docs.rs/tree_magic/"
@@ -11,16 +11,16 @@ license = "MIT"
 exclude = ["tests/*", "benches/*"]
 
 [dependencies]
-petgraph = "^0.4"
-nom = "^2"
-lazy_static = "^0.2"
+petgraph = "^0.5"
+nom = "^3"
+lazy_static = "^1.4"
 fnv = "^1"
-parking_lot = "^0.4"
+parking_lot = "^0.10"
 
 tabwriter = { version = "^1", optional = true }
 clap = { version = "^2", optional = true }
 scoped_threadpool = { version = "^0.1", optional = true }
-walkdir = { version = "^1", optional = true }
+walkdir = { version = "^2", optional = true }
 num_cpus = { version = "^1", optional = true }
 
 [features]

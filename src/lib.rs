@@ -37,6 +37,8 @@
 //! assert_eq!(result, true);
 //! ```
 
+#![allow(unused_doc_comments)]
+#![allow(dead_code)]
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
 extern crate petgraph;
@@ -46,10 +48,6 @@ extern crate parking_lot;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
-//use petgraph::dot::{Dot, Config};
-use std::io::prelude::*;
-use std::io::BufReader;
-use std::fs::File;
 use std::path::Path;
 use parking_lot::RwLock;
 use std::sync::Arc;

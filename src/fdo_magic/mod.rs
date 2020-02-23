@@ -235,7 +235,7 @@ pub mod ruleset {
 	}
     
     pub fn from_u8(b: &[u8]) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
-        let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;;
+        let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
         let mut res = FnvHashMap::<MIME, DiGraph<super::MagicRule, u32>>::default();
         
         for x in tuplevec {
