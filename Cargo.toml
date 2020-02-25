@@ -1,6 +1,6 @@
 [package]
 name = "tree_magic"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["Allison Hancock <aahancoc@umich.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
 repository = "https://github.com/aahancoc/tree_magic/"

@@ -1,7 +1,11 @@
+# 0.2.3
+
+Upgraded package versions to latest (except nom, which is currently stuck at
+3.x) and fixed the paths in the doc tests 
+
 # 0.2.2
 
-Updated most dependencies to their latest version. nom is still stuck at 0.3.x
-due to some difficulties in porting to a newer version.
+Yanked due to accidental breaking API change
 
 # 0.2.1
 
