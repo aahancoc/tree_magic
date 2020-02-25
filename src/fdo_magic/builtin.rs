@@ -1,8 +1,5 @@
 //! Read magic file bundled in crate
 
-extern crate std;
-extern crate petgraph;
-extern crate fnv;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
 use crate::MIME;
@@ -30,8 +27,6 @@ macro_rules! convmime {
 }
 
 pub mod init {
-    extern crate std;
-    extern crate fnv;
     use fnv::FnvHashMap;
     use crate::MIME;
     
@@ -97,13 +92,11 @@ pub mod init {
     
 }
 
-pub mod check {
-    extern crate std;
-    extern crate petgraph;
+pub mod check
+{
     use std::path::Path;
     use petgraph::prelude::*;
-    use super::super::super::{read_bytes};
-    use crate::fdo_magic;
+    use crate::{fdo_magic, read_bytes};
     
     /// Test against all rules
     #[allow(unused_variables)]

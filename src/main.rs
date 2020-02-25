@@ -22,13 +22,6 @@
 //! ARGS:
 //!     <file>...              List of files or folders to check. Wildcards supported. 
 
-extern crate clap;
-extern crate tabwriter;
-extern crate tree_magic;
-extern crate walkdir;
-extern crate scoped_threadpool;
-extern crate num_cpus;
-
 use tabwriter::TabWriter;
 use std::io::prelude::*;
 use std::sync::mpsc;

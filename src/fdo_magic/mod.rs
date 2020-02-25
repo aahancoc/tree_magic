@@ -1,9 +1,5 @@
 // Common routines for all fdo_magic parsers
 
-extern crate std;
-extern crate petgraph;
-extern crate fnv;
-
 pub mod builtin;
 
 #[derive(Debug, Clone)]
@@ -22,10 +18,6 @@ macro_rules! convmime {
 }
 
 pub mod ruleset {
-    extern crate nom;
-    extern crate std;
-	extern crate petgraph;
-	extern crate fnv;
     use std::str;
 	use petgraph::prelude::*;
 	use fnv::FnvHashMap;
@@ -223,10 +215,8 @@ pub mod ruleset {
 }
 
 // Functions to check if a file matches a magic entry
-pub mod check {
-
-    extern crate std;
-    extern crate petgraph;
+pub mod check
+{
     use petgraph::prelude::*;
     
     fn from_u8_singlerule(file: &[u8], rule: &super::MagicRule) -> bool {

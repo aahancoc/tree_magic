@@ -39,8 +39,6 @@
 #![allow(dead_code)]
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
-extern crate petgraph;
-extern crate fnv;
 
 use petgraph::prelude::*;
 use fnv::FnvHashMap;

@@ -1,6 +1,4 @@
 //! Handles "base types" such as inode/* and text/plain
-extern crate std;
-
 const TYPES: [&'static str; 5] =
 [
     "all/all",
@@ -12,7 +10,6 @@ const TYPES: [&'static str; 5] =
 
 pub mod init
 {
-    extern crate fnv;
     use fnv::FnvHashMap;
     use crate::MIME;
     
@@ -38,11 +35,10 @@ pub mod init
     }
 }
 
-pub mod check {
-
-    extern crate std;
+pub mod check
+{
     use std::path::Path;
-    use super::super::{read_bytes};
+    use crate::{read_bytes};
     
     /// If there are any null bytes, return False. Otherwise return True.
     fn is_text_plain_from_u8(b: &[u8]) -> bool {
