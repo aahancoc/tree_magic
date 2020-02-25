@@ -6,11 +6,6 @@ extern crate fnv;
 
 pub mod builtin;
 
-// We can't have staticmime and sys_fdo_magic enabled
-// because we can't statically refer to a file on disk.
-#[cfg(all(feature="staticmime", all(feature="sys_fdo_magic", unix)))]
-const CONF_ERROR_CANNOT_USE_STATICMIME_WITH_SYS_FDO_MAGIC: u32 = ();
-
 #[derive(Debug, Clone)]
 pub struct MagicRule {
     pub indent_level: u32,
@@ -22,13 +17,8 @@ pub struct MagicRule {
     pub region_len: u32
 }
 
-#[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
     ($x:expr) => {$x.to_string()}
-}
-#[cfg(feature="staticmime")]
-macro_rules! convmime {
-    ($x:expr) => {$x}
 }
 
 pub mod ruleset {
@@ -39,7 +29,7 @@ pub mod ruleset {
     use std::str;
 	use petgraph::prelude::*;
 	use fnv::FnvHashMap;
-    use MIME;
+    use crate::MIME;
 
     // Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
     // but modified to be safe and provide defaults
@@ -60,7 +50,6 @@ pub mod ruleset {
 
     // Initial mime string
     // Format: [priority: mime]   
-    #[cfg(not(feature="staticmime"))]
     named!(mime<&str>,
         map_res!(
             delimited!(
@@ -75,40 +64,7 @@ pub mod ruleset {
             str::from_utf8
         )
     );
-    #[cfg(feature="staticmime")]
-    named!(mime<&'static str>,
-        do_parse!(
-            res: delimited!(
-                delimited!(
-                    char!('['),
-                    is_not!(":"),
-                    char!(':')
-                ),
-                is_not!("]"), // the mime
-                tag!("]\n") 
-            ) >>
-            // Yes I am aware that this is horribly dangerous
-            // but there is no reason this shouldn't be fine
-            // because the source is static and known and really
-            // a string is just a slice of u8s isn't it?
-            (unsafe{
-                std::mem::transmute(res)
-            })
-        )
-    );
     
-    #[test]
-    // Ensures the transmute used in mime for feature="staticmime"
-    // doesn't blow up.
-    fn str_transmute_sanity() {
-        unsafe {
-            const A: &'static [u8] = b"Hello world!";
-            const B: &'static str = "Hello world!";
-            let c: &'static str = std::mem::transmute(A);
-            assert!(B == c); // 256
-        }
-    }
-
     // Indent levels sub-parser for magic_rules
     // Default value 0
     named!(magic_rules_indent_level<u32>,
@@ -247,7 +203,6 @@ pub mod ruleset {
     }
 
     /// Loads the given magic file and outputs a vector of MagicEntry structs
-    #[cfg(not(feature="staticmime"))]
     pub fn from_filepath(filepath: &str) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String>{
         use std::io::prelude::*;
         use std::io::BufReader;

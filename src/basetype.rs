@@ -14,32 +14,13 @@ pub mod init
 {
     extern crate fnv;
     use fnv::FnvHashMap;
-    use MIME;
+    use crate::MIME;
     
-    #[cfg(feature="staticmime")]
-    pub fn get_supported() -> Vec<MIME> {
-        super::TYPES.to_vec().iter().map(|x| *x).collect()
-    }
-    
-    #[cfg(not(feature="staticmime"))]
     pub fn get_supported() -> Vec<MIME> {
         super::TYPES.to_vec().iter().map(|x| x.to_string()).collect()
     }
     
     /// Returns Vec of parent->child relations
-    #[cfg(feature="staticmime")]
-    pub fn get_subclasses() -> Vec<(MIME, MIME)> {
-        let mut res = Vec::<(MIME, MIME)>::new();
-
-        res.push( ("all/all", "all/allfiles") );
-        res.push( ("all/all", "inode/directory") );
-        res.push( ("all/allfiles", "application/octet-stream") );
-        res.push( ("application/octet-stream", "text/plain") );
-        
-        res
-    }
-    
-    #[cfg(not(feature="staticmime"))]
     pub fn get_subclasses() -> Vec<(MIME, MIME)> {
         let mut res = Vec::<(MIME, MIME)>::new();
 
@@ -55,7 +36,6 @@ pub mod init
     pub fn get_aliaslist() -> FnvHashMap<MIME, MIME> {
         FnvHashMap::default()
     }
-    
 }
 
 pub mod check {

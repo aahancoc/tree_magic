@@ -2,13 +2,8 @@ mod from_u8 {
 
     extern crate tree_magic;
 
-    #[cfg(not(feature="staticmime"))]
     macro_rules! convmime {
         ($x:expr) => {$x.to_string()}
-    }
-    #[cfg(feature="staticmime")]
-    macro_rules! convmime {
-        ($x:expr) => {$x}
     }
 
     ///Image tests

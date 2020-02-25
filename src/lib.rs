@@ -511,7 +511,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
 ///
 /// // Find the MIME type of the GIF
 /// let result = tree_magic::from_filepath(path);
-/// assert_eq!(result, Some("image/gif"));
+/// assert_eq!(result, Some("image/gif".to_string()));
 /// ```
 pub fn from_filepath(filepath: &Path) -> Option<MIME> {
 

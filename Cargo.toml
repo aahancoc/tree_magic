@@ -1,6 +1,6 @@
 [package]
 name = "tree_magic"
-version = "0.2.3"
+version = "0.3.0"
 authors = ["Allison Hancock <aahancoc@umich.edu>"]
 description = "Determines the MIME type of a file by traversing a filetype tree."
 repository = "https://github.com/aahancoc/tree_magic/"
@@ -9,6 +9,8 @@ readme = "README.md"
 keywords = ["mime", "filesystem", "media-types"]
 license = "MIT"
 exclude = ["tests/*", "benches/*"]
+edition = "2018"
+publish = false
 
 [dependencies]
 petgraph = "^0.5"

@@ -5,7 +5,7 @@ extern crate petgraph;
 extern crate fnv;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
-use MIME;
+use crate::MIME;
 use super::MagicRule;
 
 /// Dummy cache type
@@ -25,20 +25,15 @@ lazy_static! {
     };
 }
 
-#[cfg(not(feature="staticmime"))]
 macro_rules! convmime {
     ($x:expr) => {$x.to_string()}
-}
-#[cfg(feature="staticmime")]
-macro_rules! convmime {
-    ($x:expr) => {$x}
 }
 
 pub mod init {
     extern crate std;
     extern crate fnv;
     use fnv::FnvHashMap;
-    use MIME;
+    use crate::MIME;
     
     /// Read all subclass lines from file
     fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
@@ -76,13 +71,8 @@ pub mod init {
     }
     
     /// Get list of supported MIME types
-    #[cfg(not(feature="staticmime"))]
     pub fn get_supported() -> Vec<MIME> {
         super::ALLRULES.keys().cloned().collect()
-    }
-    #[cfg(feature="staticmime")]
-    pub fn get_supported() -> Vec<MIME> {
-        super::ALLRULES.keys().map(|x| *x).collect()
     }
     
     /// Get list of parent -> child subclass links
@@ -113,7 +103,7 @@ pub mod check {
     use std::path::Path;
     use petgraph::prelude::*;
     use super::super::super::{read_bytes};
-    use fdo_magic;
+    use crate::fdo_magic;
     
     /// Test against all rules
     #[allow(unused_variables)]
