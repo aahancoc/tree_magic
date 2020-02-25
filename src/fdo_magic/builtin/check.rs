@@ -1,13 +1,14 @@
 use std::path::Path;
 use petgraph::prelude::*;
 use crate::{fdo_magic, read_bytes};
+use mime::Mime as MIME;
 
 /// Test against all rules
 #[allow(unused_variables)]
-pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
+pub fn from_u8(file: &[u8], mimetype: MIME) -> bool {
 
 	// Get magic ruleset
-	let graph = match super::ALLRULES.get(mimetype) {
+	let graph = match super::ALLRULES.get(&mimetype) {
 		Some(item) => item,
 		None => return false // No rule for this mime
 	};
@@ -25,9 +26,9 @@ pub fn from_u8(file: &[u8], mimetype: &str) -> bool {
 /// This only exists for the case of a direct match_filepath call
 /// and even then we could probably get rid of this...
 #[allow(unused_variables)]
-pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool{
+pub fn from_filepath(filepath: &Path, mimetype: MIME) -> bool{
 	// Get magic ruleset
-	let magic_rules = match super::ALLRULES.get(mimetype) {
+	let magic_rules = match super::ALLRULES.get(&mimetype) {
 		Some(item) => item,
 		None => return false // No rule for this mime
 	};

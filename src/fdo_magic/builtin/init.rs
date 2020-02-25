@@ -8,8 +8,8 @@ fn read_subclasses() -> Result<Vec<(MIME, MIME)>, std::io::Error> {
 	let mut subclasses = Vec::<(MIME, MIME)>::new();
 	
 	for line in r.lines() {
-		let child = line.split_whitespace().nth(0).unwrap_or("").to_string();
-		let parent = line.split_whitespace().nth(1).unwrap_or("").to_string();
+		let child = line.split_whitespace().nth(0).unwrap_or("").parse().unwrap_or(mime::APPLICATION_OCTET_STREAM);
+		let parent = line.split_whitespace().nth(1).unwrap_or("").parse().unwrap_or(mime::APPLICATION_OCTET_STREAM);
 		
 		subclasses.push( (parent, child) );
 	}
@@ -23,8 +23,8 @@ fn read_aliaslist() -> Result<FnvHashMap<MIME, MIME>, std::io::Error> {
 	let mut aliaslist = FnvHashMap::<MIME, MIME>::default();
 	
 	for line in raliases.lines() {
-		let a = line.split_whitespace().nth(0).unwrap_or("").to_string();
-		let b = line.split_whitespace().nth(1).unwrap_or("").to_string();
+		let a = line.split_whitespace().nth(0).unwrap_or("").parse().unwrap_or(mime::APPLICATION_OCTET_STREAM);
+		let b = line.split_whitespace().nth(1).unwrap_or("").parse().unwrap_or(mime::APPLICATION_OCTET_STREAM);
 		aliaslist.insert(a,b);
 	}
 	

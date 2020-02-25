@@ -3,7 +3,7 @@ mod from_u8 {
     extern crate tree_magic;
 
     macro_rules! convmime {
-        ($x:expr) => {$x.to_string()}
+        ($x:expr) => {$x.parse().unwrap()}
     }
 
     ///Image tests

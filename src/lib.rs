@@ -44,28 +44,25 @@ use petgraph::prelude::*;
 use fnv::FnvHashMap;
 use fnv::FnvHashSet;
 use std::path::Path;
+use mime::Mime as MIME;
 
 mod fdo_magic;
 mod basetype;
 
-type MIME = String;
-
 /// Check these types first
 /// TODO: Poll these from the checkers? Feels a bit arbitrary
-const TYPEORDER: [&'static str; 6] =
+const TYPEORDER: [MIME; 4] =
 [
-	"image/png",
-	"image/jpeg",
-	"image/gif",
-	"application/zip",
-	"application/x-msdos-executable",
-	"application/pdf"
+	(mime::IMAGE_PNG),
+	(mime::IMAGE_JPEG),
+	(mime::IMAGE_GIF),
+	(mime::APPLICATION_PDF)
 ];
 
 /// Struct used to define checker functions for the sake of boilerplate reduction
 struct CheckerStruct {
-    from_u8: fn(&[u8], &str) -> bool,
-    from_filepath: fn(&Path, &str) -> bool,
+    from_u8: fn(&[u8], MIME) -> bool,
+    from_filepath: fn(&Path, MIME) -> bool,
     get_supported: fn() -> Vec<MIME>,
     get_subclasses: fn() -> Vec<(MIME, MIME)>,
     get_aliaslist: fn() -> FnvHashMap<MIME, MIME>
@@ -144,21 +141,6 @@ lazy_static! {
     };
 }
 
-/// Convert a &str to a MIME
-macro_rules! convmime {
-    ($x:expr) => {$x.to_string()}
-}
-
-/// Convert a MIME to a &str
-macro_rules! unconvmime {
-    ($x:expr) => {$x.as_str()}
-}
-
-/// Clone a MIME
-macro_rules! clonemime {
-    ($x:expr) => {$x.clone()}
-}
-
 // Initialize filetype graph
 fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
@@ -178,8 +160,8 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     
     // Create all nodes
     for mimetype in mimelist.iter() {
-        let node = graph.add_node(clonemime!(mimetype));
-        added_mimes.insert(clonemime!(mimetype), node);
+        let node = graph.add_node(mimetype.clone());
+        added_mimes.insert(mimetype.clone(), node);
     }
         
     let mut edge_list = FnvHashSet::<(NodeIndex, NodeIndex)>::with_capacity_and_hasher(
@@ -207,35 +189,40 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     //Add to applicaton/octet-stream, all/all, or text/plain, depending on top-level
     //(We'll just do it here because having the graph makes it really nice)
     let added_mimes_tmp = added_mimes.clone();
-    let node_text = match added_mimes_tmp.get("text/plain"){
+
+    const text_plain: MIME = "text/plain".parse().unwrap();
+    let node_text = match added_mimes_tmp.get(&text_plain){
         Some(x) => *x,
         None => {
-            let node = graph.add_node(convmime!("text/plain"));
-            added_mimes.insert(convmime!("text/plain"), node);
+            let node = graph.add_node(text_plain);
+            added_mimes.insert(text_plain, node);
             node
         }
     };
-    let node_octet = match added_mimes_tmp.get("application/octet-stream"){
+    const app_octet: MIME = "application/octet-stream".parse().unwrap();
+    let node_octet = match added_mimes_tmp.get(&app_octet){
         Some(x) => *x,
         None => {
-            let node = graph.add_node(convmime!("application/octet-stream"));
-            added_mimes.insert(convmime!("application/octet-stream"), node);
+            let node = graph.add_node(app_octet);
+            added_mimes.insert(app_octet, node);
             node
         }
     };
-    let node_allall = match added_mimes_tmp.get("all/all"){
+    const all_all: MIME = "all/all".parse().unwrap();
+    let node_allall = match added_mimes_tmp.get(&all_all){
         Some(x) => *x,
         None => {
-            let node = graph.add_node(convmime!("all/all"));
-            added_mimes.insert(convmime!("all/all"), node);
+            let node = graph.add_node(all_all);
+            added_mimes.insert(all_all, node);
             node
         }
     };
-    let node_allfiles = match added_mimes_tmp.get("all/allfiles"){
+    const all_allfiles: MIME = "all/allfiles".parse().unwrap();
+    let node_allfiles = match added_mimes_tmp.get(&all_allfiles){
         Some(x) => *x,
         None => {
-            let node = graph.add_node(convmime!("all/allfiles"));
-            added_mimes.insert(convmime!("all/allfiles"), node);
+            let node = graph.add_node(all_allfiles);
+            added_mimes.insert(all_allfiles, node);
             node
         }
     };
@@ -244,7 +231,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
     for mimenode in graph.externals(Incoming) {
         
         let ref mimetype = graph[mimenode];
-        let toplevel = mimetype.split("/").nth(0).unwrap_or("");
+        let toplevel = mimetype.type_();
         
         if mimenode == node_text || mimenode == node_octet || 
            mimenode == node_allfiles || mimenode == node_allall 
@@ -274,7 +261,7 @@ fn graph_init() -> Result<TypeStruct, std::io::Error> {
 fn typegraph_walker<T: Clone>(
     parentnode: NodeIndex,
     input: T,
-    matchfn: fn(&str, T) -> bool
+    matchfn: fn(MIME, T) -> bool
 ) -> Option<MIME> {
 
     // Pull most common types towards top
@@ -284,7 +271,7 @@ fn typegraph_walker<T: Clone>(
         
     for i in 0..children.len() {
         let x = children[i];
-        if TYPEORDER.contains(&&*TYPE.graph[x]) {
+        if TYPEORDER.contains(&TYPE.graph[x]) {
             children.remove(i);
             children.insert(0, x);
         }
@@ -292,14 +279,14 @@ fn typegraph_walker<T: Clone>(
 
     // Walk graph
     for childnode in children {
-        let ref mimetype = TYPE.graph[childnode];
+        let mimetype = TYPE.graph[childnode];
         
         let result = (matchfn)(mimetype, input.clone());
         match result {
             true => {
                 match typegraph_walker(childnode, input, matchfn) {
                     Some(foundtype) => return Some(foundtype),
-                    None => return Some(clonemime!(mimetype)),
+                    None => return Some(mimetype),
                 }
             }
             false => continue,
@@ -310,18 +297,18 @@ fn typegraph_walker<T: Clone>(
 }
 
 /// Transforms an alias into it's real type
-fn get_alias(mimetype: &String) -> &String {
-    match ALIASES.get(mimetype) {
-        Some(x) => x,
+fn get_alias(mimetype: MIME) -> MIME {
+    match ALIASES.get(&mimetype) {
+        Some(x) => *x,
         None => mimetype
     }
 }
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs match_u8.
-fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
+fn match_u8_noalias(mimetype: MIME, bytes: &[u8]) -> bool
 {
-    match CHECKER_SUPPORT.get(mimetype) {
+    match CHECKER_SUPPORT.get(&mimetype) {
         None => {false},
         Some(y) => (CHECKERS[*y].from_u8)(bytes, mimetype)
     }
@@ -342,12 +329,9 @@ fn match_u8_noalias(mimetype: &str, bytes: &[u8]) -> bool
 /// let result = tree_magic::match_u8("image/gif", input);
 /// assert_eq!(result, true);
 /// ```
-pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
+pub fn match_u8(mimetype: MIME, bytes: &[u8]) -> bool
 {
-    // Transform alias if needed
-    let oldmime = convmime!(mimetype);
-    let x = unconvmime!(get_alias(&oldmime));
-    match_u8_noalias(x, bytes)
+    match_u8_noalias(get_alias(mimetype), bytes)
 }
 
 
@@ -408,9 +392,9 @@ pub fn from_u8(bytes: &[u8]) -> MIME
 
 /// Internal function. Checks if an alias exists, and if it does,
 /// then runs `match_u8`.
-fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
+fn match_filepath_noalias(mimetype: MIME, filepath: &Path) -> bool
 {
-    match CHECKER_SUPPORT.get(mimetype) {
+    match CHECKER_SUPPORT.get(&mimetype) {
         None => {false},
         Some(y) => {
             (CHECKERS[*y].from_filepath)(filepath, mimetype)
@@ -434,12 +418,10 @@ fn match_filepath_noalias(mimetype: &str, filepath: &Path) -> bool
 /// let result = tree_magic::match_filepath("image/gif", path);
 /// assert_eq!(result, true);
 /// ```
-pub fn match_filepath(mimetype: &str, filepath: &Path) -> bool 
+pub fn match_filepath(mimetype: MIME, filepath: &Path) -> bool 
 {
     // Transform alias if needed
-    let oldmime = convmime!(mimetype);
-    let x = unconvmime!(get_alias(&oldmime));
-    match_filepath_noalias(x, filepath)
+    match_filepath_noalias(get_alias(mimetype), filepath)
 }
 
 
@@ -478,7 +460,7 @@ pub fn from_filepath_node(parentnode: NodeIndex, filepath: &Path) -> Option<MIME
     // unless we're checking via basetype for speed reasons.
     
     // Ensure it's at least a application/octet-stream
-    if !match_filepath("application/octet-stream", filepath){
+    if !match_filepath(mime::APPLICATION_OCTET_STREAM, filepath){
         // Check the other base types
         return typegraph_walker(parentnode, filepath, match_filepath_noalias);
     }
@@ -533,10 +515,10 @@ pub fn from_filepath(filepath: &Path) -> Option<MIME> {
 ///
 /// assert_eq!( tree_magic::is_alias(mime1, mime2), true );
 pub fn is_alias(mime1: MIME, mime2: MIME) -> bool {
-    let x = get_alias(&mime1);
-    let y = get_alias(&mime2);
+    let x = get_alias(mime1);
+    let y = get_alias(mime2);
     
-    return *x == mime2 || *y == mime1;
+    return x == mime2 || y == mime1;
 }
 
 /// Reads the given number of bytes from a file

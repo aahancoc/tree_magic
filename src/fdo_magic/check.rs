@@ -1,4 +1,5 @@
 use petgraph::prelude::*;
+use crate::{MIME};
 
 fn from_u8_singlerule(file: &[u8], rule: &super::MagicRule) -> bool {
 	
@@ -88,7 +89,7 @@ fn from_u8_singlerule(file: &[u8], rule: &super::MagicRule) -> bool {
 /// TODO: Not loving the code duplication here.
 pub fn from_u8_walker(
 	file: &[u8],
-	mimetype: &str,
+	mimetype: MIME,
 	graph: &DiGraph<super::MagicRule, u32>,
 	node: NodeIndex,
 	isroot: bool

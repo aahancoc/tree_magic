@@ -112,7 +112,7 @@ named!(magic_rules<super::MagicRule>,
 /// Singular magic entry
 named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
 	do_parse!(
-		_mime: do_parse!(ret: mime >> (ret.to_string())) >>
+		_mime: do_parse!(ret: mime >> (ret.parse().unwrap_or(mime::APPLICATION_OCTET_STREAM))) >>
 		_rules: many0!(magic_rules) >> (_mime, _rules)
 	)
 );

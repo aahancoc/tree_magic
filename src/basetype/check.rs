@@ -1,5 +1,5 @@
 use std::path::Path;
-use crate::{read_bytes};
+use crate::{read_bytes, MIME};
 
 /// If there are any null bytes, return False. Otherwise return True.
 fn is_text_plain_from_u8(b: &[u8]) -> bool
@@ -18,9 +18,11 @@ fn is_text_plain_from_filepath(filepath: &Path) -> bool
 }
 
 #[allow(unused_variables)]
-pub fn from_u8(b: &[u8], mimetype: &str) -> bool
+pub fn from_u8(b: &[u8], mimetype: MIME) -> bool
 {
-	if mimetype == "application/octet-stream" || mimetype == "all/allfiles" {
+	if mimetype == "application/octet-stream" || 
+	   mimetype == "all/allfiles"
+	{
 		// Both of these are the case if we have a bytestream at all
 		return true;
 	} if mimetype == "text/plain" {
@@ -31,7 +33,7 @@ pub fn from_u8(b: &[u8], mimetype: &str) -> bool
 	}
 }
 
-pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool
+pub fn from_filepath(filepath: &Path, mimetype: MIME) -> bool
 {
 	use std::fs;
 
@@ -42,7 +44,7 @@ pub fn from_filepath(filepath: &Path, mimetype: &str) -> bool
 		Err(_) => {return false;}
 	};
 
-	match mimetype {
+	match mimetype.to_string().as_str() {
 		"all/all" => return true,
 		"all/allfiles" | "application/octet-stream" => return meta.is_file(),
 		"inode/directory" => return meta.is_dir(),
