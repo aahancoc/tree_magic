@@ -28,7 +28,7 @@
 //! extern crate tree_magic;
 //! 
 //! // Load a GIF file
-//! let input: &[u8] = include_bytes!("tests/image/gif");
+//! let input: &[u8] = include_bytes!("../tests/image/gif");
 //!
 //! // Find the MIME type of the GIF
 //! let result = tree_magic::from_u8(input);
@@ -39,6 +39,8 @@
 //! assert_eq!(result, true);
 //! ```
 
+#![allow(unused_doc_comments)]
+#![allow(dead_code)]
 #[macro_use] extern crate nom;
 #[macro_use] extern crate lazy_static;
 extern crate petgraph;
@@ -407,7 +409,7 @@ fn match_u8_noalias(mimetype: &str, bytes: &[u8], cache: &CacheContainer) -> boo
 /// # Examples
 /// ```rust
 /// // Load a GIF file
-/// let input: &[u8] = include_bytes!("tests/image/gif");
+/// let input: &[u8] = include_bytes!("../tests/image/gif");
 ///
 /// // Check if the MIME and the file are a match
 /// let result = tree_magic::match_u8("image/gif", input);
@@ -442,7 +444,7 @@ pub fn match_u8(mimetype: &str, bytes: &[u8]) -> bool
 /// /// it will return None.
 ///
 /// // Load a ZIP file
-/// let input: &[u8] = include_bytes!("tests/application/zip");
+/// let input: &[u8] = include_bytes!("../tests/application/zip");
 /// 
 /// // Get the graph node for ZIP
 /// let zipnode = tree_magic::TYPE.hash.get("application/zip").unwrap();
@@ -463,7 +465,7 @@ pub fn from_u8_node(parentnode: NodeIndex, bytes: &[u8]) -> Option<MIME>
 /// # Examples
 /// ```rust
 /// // Load a GIF file
-/// let input: &[u8] = include_bytes!("tests/image/gif");
+/// let input: &[u8] = include_bytes!("../tests/image/gif");
 ///
 /// // Find the MIME type of the GIF
 /// let result = tree_magic::from_u8(input);

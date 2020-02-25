@@ -1,3 +1,12 @@
+# 0.2.3
+
+Upgraded package versions to latest (except nom, which is currently stuck at
+3.x) and fixed the paths in the doc tests 
+
+# 0.2.2
+
+Yanked due to accidental breaking API change
+
 # 0.2.1
 
 Incorporated fix by Bram Sanders to prevent panic on non-existent file.
