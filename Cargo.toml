@@ -22,6 +22,9 @@ scoped_threadpool = { version = "^0.1", optional = true }
 walkdir = { version = "^2", optional = true }
 num_cpus = { version = "^1", optional = true }
 
+[dev-dependencies]
+bencher = "^0.1"
+
 [features]
 cli = ["clap", "tabwriter", "scoped_threadpool", "walkdir", "num_cpus"]
 default = []
@@ -34,3 +37,10 @@ path = "src/lib.rs"
 required-features = ["cli"]
 name = "tmagic"
 path = "src/main.rs"
+
+[[bench]]
+name = "from_u8"
+harness = false
+[[bench]]
+name = "match_u8"
+harness = false
