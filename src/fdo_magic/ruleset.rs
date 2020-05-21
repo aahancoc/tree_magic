@@ -159,15 +159,9 @@ fn gen_graph(magic_rules: Vec<super::MagicRule>) -> DiGraph<super::MagicRule, u3
 }
 
 pub fn from_u8(b: &[u8]) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
-	let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
-	let mut res = FnvHashMap::<MIME, DiGraph<super::MagicRule, u32>>::default();
-	
-	for x in tuplevec {
-		res.insert(x.0, gen_graph(x.1));
-	}
-	
+	let tuplevec = from_u8_to_tuple_vec(b).map_err(|e| e.to_string())?.1;
+	let res = tuplevec.into_iter().map(|x| (x.0, gen_graph(x.1))).collect();
 	Ok(res)
-	
 }
 
 /// Loads the given magic file and outputs a vector of MagicEntry structs
