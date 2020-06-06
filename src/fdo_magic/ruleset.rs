@@ -2,130 +2,69 @@ use std::str;
 use petgraph::prelude::*;
 use fnv::FnvHashMap;
 use crate::MIME;
-
-// Below functions from https://github.com/badboy/iso8601/blob/master/src/helper.rs
-// but modified to be safe and provide defaults
-pub fn to_string(s: &[u8]) -> std::result::Result<&str, std::str::Utf8Error> {
-	str::from_utf8(s)
-}
-pub fn to_u32(s: std::result::Result<&str, std::str::Utf8Error>, def: u32) -> u32 {
-	
-	match s {
-		Ok (t) => {str::FromStr::from_str(t).unwrap_or(def)},
-		Err (_) => def
-	}
-}
-
-pub fn buf_to_u32(s: &[u8], def: u32) -> u32 {
-	to_u32(to_string(s), def)
-}
-
-// Initial mime string
-// Format: [priority: mime]   
-named!(mime<&str>,
-	map_res!(
-		delimited!(
-			delimited!(
-				char!('['),
-				is_not!(":"),
-				char!(':')
-			),
-			is_not!("]"), // the mime
-			tag!("]\n") 
-		),
-		str::from_utf8
-	)
-);
-
-// Indent levels sub-parser for magic_rules
-// Default value 0
-named!(magic_rules_indent_level<u32>,
-	do_parse!(
-		ret: take_until!(">") >> 
-		(buf_to_u32(ret, 0))
-	)
-);
-
-// Start offset sub-parser for magic_rules
-named!(magic_rules_start_off<u32>,
-	do_parse!(
-		ret: take_until!("=") >>
-		(buf_to_u32(ret, 0))
-	)
-);
+use nom::{
+  IResult,
+  bytes::complete::{is_not, tag, take, take_while},
+  character::is_digit,
+  combinator::{map, map_res, opt},
+  multi::many0,
+  number::complete::be_u16,
+  sequence::{delimited, preceded, terminated, tuple},
+};
 
 // Singular magic ruleset
-named!(magic_rules<super::MagicRule>,
-	do_parse!(
-		peek!(is_a!("012345689>")) >>
-		_indent_level: magic_rules_indent_level >>
-		tag!(">") >>
-		_start_off: magic_rules_start_off >>
-		tag!("=") >>
-		_val_len: u16!(nom::Endianness::Big) >> // length of value
-		_val: do_parse!(
-			ret: take!(_val_len) >>
-			(ret.iter().map(|&x| x).collect())
-		) >> // value
-		
-		_mask: opt!(
-			do_parse!(
-				char!('&') >>
-				ret: take!(_val_len) >> // mask (default 0xFF)
-				(ret.iter().map(|&x| x).collect())
-			)
-		) >>
-		
-		// word size (default 1)
-		_word_len: opt!(
-			do_parse!(
-				tag!("~") >>
-				ret: take_until!("+") >>
-				(buf_to_u32(ret, 1))
-			)
-		) >>
-		
-		// length of region in file to check (default 1)
-		_region_len: opt!(
-			do_parse!(
-				tag!("+") >>
-				ret: take_until!("\n") >>
-				(buf_to_u32(ret, 0))
-			)
-		) >>
-		
-		take_until_and_consume!("\n") >>
-		
-		(super::MagicRule{
-			indent_level: _indent_level,
-			start_off: _start_off,
-			val: _val,
-			val_len: _val_len,
-			mask: _mask,
-			word_len: _word_len.unwrap_or(1),
-			region_len: _region_len.unwrap_or(0)
-		})
-	)
-	
-);
+fn magic_rules(input: &[u8]) -> IResult<&[u8], super::MagicRule> {
+    let int_or = |default| map(
+        take_while(is_digit),
+        move |digits| str::from_utf8(digits).unwrap().parse().unwrap_or(default)
+    );
 
-/// Singular magic entry
-named!(magic_entry<(MIME, Vec<super::MagicRule>)>,
-	do_parse!(
-		_mime: do_parse!(ret: mime >> (ret.to_string())) >>
-		_rules: many0!(magic_rules) >> (_mime, _rules)
-	)
-);
+    let (input, (indent_level, start_off, val_len)) = tuple((
+        terminated(int_or(0), tag(">")),
+        terminated(int_or(0), tag("=")),
+        be_u16,
+    ))(input)?;
+
+    let (input, (val, mask, word_len, region_len)) = terminated(
+        tuple((
+            take(val_len),
+            opt(preceded(tag("&"), take(val_len))),
+            opt(preceded(tag("~"), int_or(1))),
+            opt(preceded(tag("+"), int_or(0))),
+        )),
+        tag("\n")
+    )(input)?;
+
+    Ok((input, super::MagicRule {
+        indent_level,
+        start_off,
+        val: val.to_vec(),
+        val_len,
+        mask: mask.map(Vec::from),
+        word_len: word_len.unwrap_or(1),
+        region_len: region_len.unwrap_or(0),
+    }))
+}
 
 /// Converts a magic file given as a &[u8] array
 /// to a vector of MagicEntry structs
-named!(from_u8_to_tuple_vec<Vec<(MIME, Vec<super::MagicRule>)>>,
-	do_parse!(
-		tag!("MIME-Magic\0\n") >>
-		ret: many0!(magic_entry) >>
-		(ret)
-	)
-);
+fn ruleset(input: &[u8]) -> IResult<&[u8], Vec<(MIME, Vec<super::MagicRule>)>> {
+    // Parse the MIME type from "[priority: mime]"
+    let mime = map(map_res(
+        terminated(
+            delimited(
+                delimited(tag("["), is_not(":"), tag(":")), // priority
+                is_not("]"), // mime
+                tag("]")
+            ),
+            tag("\n"),
+        ),
+        str::from_utf8),
+    str::to_string);
+
+    let magic_entry = tuple((mime, many0(magic_rules)));
+    preceded(tag("MIME-Magic\0\n"), many0(magic_entry))(input)
+}
 
 fn gen_graph(magic_rules: Vec<super::MagicRule>) -> DiGraph<super::MagicRule, u32>
 {
@@ -159,15 +98,9 @@ fn gen_graph(magic_rules: Vec<super::MagicRule>) -> DiGraph<super::MagicRule, u3
 }
 
 pub fn from_u8(b: &[u8]) -> Result<FnvHashMap<MIME, DiGraph<super::MagicRule, u32>>, String> {
-	let tuplevec = from_u8_to_tuple_vec(b).to_result().map_err(|e| e.to_string())?;
-	let mut res = FnvHashMap::<MIME, DiGraph<super::MagicRule, u32>>::default();
-	
-	for x in tuplevec {
-		res.insert(x.0, gen_graph(x.1));
-	}
-	
+	let tuplevec = ruleset(b).map_err(|e| e.to_string())?.1;
+	let res = tuplevec.into_iter().map(|x| (x.0, gen_graph(x.1))).collect();
 	Ok(res)
-	
 }
 
 /// Loads the given magic file and outputs a vector of MagicEntry structs

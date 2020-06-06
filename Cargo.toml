@@ -14,7 +14,7 @@ publish = false
 
 [dependencies]
 petgraph = "^0.5"
-nom = "^3"
+nom = "5.1"
 lazy_static = "^1.4"
 fnv = "^1"
 
